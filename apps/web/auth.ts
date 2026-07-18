@@ -2,11 +2,8 @@ import NextAuth from 'next-auth';
 import Google from 'next-auth/providers/google';
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import { getWebEnv } from '@site-quality-audit/config';
-import {
-  ensurePrivateWorkspaceForUser,
-  getPrismaClient,
-} from '@site-quality-audit/database';
-import { toBrowserSession } from './lib/session-shape';
+import { getPrismaClient } from '@site-quality-audit/database';
+import { createAuthOptions } from './lib/auth-options';
 
 const env = getWebEnv();
 const prisma = getPrismaClient();
@@ -33,15 +30,5 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
     strategy: 'database',
   },
   trustHost: env.AUTH_TRUST_HOST,
-  callbacks: {
-    session: async ({ session }) => toBrowserSession(session),
-    signIn: async ({ user }) => {
-      if (!user.id) {
-        return false;
-      }
-
-      await ensurePrivateWorkspaceForUser(prisma, user.id, user.name);
-      return true;
-    },
-  },
+  ...createAuthOptions(prisma),
 });
