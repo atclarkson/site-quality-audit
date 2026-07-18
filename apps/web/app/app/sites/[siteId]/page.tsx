@@ -43,6 +43,16 @@ export default async function SiteDetailPage({
 
   const deleteAction = deleteSiteAction.bind(null, siteId);
   const startAction = startAuditAction.bind(null, siteId);
+  const latestCompletedAudit = auditSnapshot.recentAuditRuns.find(
+    (auditRun) => auditRun.status === 'COMPLETED',
+  );
+  const latestCompletedFindingCount = latestCompletedAudit
+    ? latestCompletedAudit.criticalFindingCount +
+      latestCompletedAudit.highFindingCount +
+      latestCompletedAudit.mediumFindingCount +
+      latestCompletedAudit.lowFindingCount +
+      latestCompletedAudit.infoFindingCount
+    : 0;
 
   return (
     <main>
@@ -76,6 +86,34 @@ export default async function SiteDetailPage({
             <button type="submit">Start audit</button>
           </form>
         </div>
+
+        <section className="report-section">
+          <h2>Latest completed audit</h2>
+          {latestCompletedAudit ? (
+            <>
+              <p>
+                Completed:{' '}
+                {latestCompletedAudit.completedAt
+                  ? dateFormatter.format(latestCompletedAudit.completedAt)
+                  : 'Unknown'}
+              </p>
+              <p>
+                Findings: {latestCompletedFindingCount} total,{' '}
+                {latestCompletedAudit.criticalFindingCount} critical,{' '}
+                {latestCompletedAudit.highFindingCount} high
+              </p>
+              <p>
+                <Link
+                  href={`/app/sites/${siteId}/audits/${latestCompletedAudit.id}`}
+                >
+                  Open prioritized audit report
+                </Link>
+              </p>
+            </>
+          ) : (
+            <p>No completed audit yet.</p>
+          )}
+        </section>
 
         <AuditStatusPanel
           initialSnapshot={toSerializableAuditSnapshot(auditSnapshot)}

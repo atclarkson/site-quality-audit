@@ -58,6 +58,9 @@ importers:
       '@site-quality-audit/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@site-quality-audit/findings':
+        specifier: workspace:*
+        version: link:../../packages/findings
       '@site-quality-audit/logging':
         specifier: workspace:*
         version: link:../../packages/logging
@@ -97,6 +100,9 @@ importers:
       '@site-quality-audit/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@site-quality-audit/findings':
+        specifier: workspace:*
+        version: link:../../packages/findings
       '@site-quality-audit/logging':
         specifier: workspace:*
         version: link:../../packages/logging
@@ -139,6 +145,8 @@ importers:
         version: 6.19.3(typescript@5.9.3)
 
   packages/domain: {}
+
+  packages/findings: {}
 
   packages/logging:
     dependencies:

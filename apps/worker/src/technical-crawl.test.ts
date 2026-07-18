@@ -310,6 +310,10 @@ describe('runTechnicalCrawl', () => {
         where: { auditRunId: fixture.auditRun.id },
         orderBy: { normalizedUrl: 'asc' },
       });
+      const findings = await db.finding.findMany({
+        where: { auditRunId: fixture.auditRun.id },
+        orderBy: [{ priorityScore: 'desc' }, { code: 'asc' }],
+      });
 
       expect(persistedAuditRun.status).toBe(AuditRunStatus.COMPLETED);
       expect(persistedAuditRun.completedAt).not.toBeNull();
@@ -328,8 +332,34 @@ describe('runTechnicalCrawl', () => {
       expect(persistedAuditRun.robotsTxtExists).toBe(true);
       expect(persistedAuditRun.sitemapCount).toBe(1);
       expect(persistedAuditRun.sitemapUrlCount).toBe(5);
+      expect(persistedAuditRun.findingsGeneratedAt).not.toBeNull();
+      expect(persistedAuditRun.pagesWithFindingsCount).toBeGreaterThan(0);
 
       expect(pages).toHaveLength(6);
+      expect(findings.length).toBeGreaterThan(0);
+      expect(
+        findings.some((finding) => finding.code === 'IMAGES_MISSING_ALT'),
+      ).toBe(true);
+      expect(findings.some((finding) => finding.code === 'NOINDEX_PAGE')).toBe(
+        true,
+      );
+      expect(
+        findings.some((finding) => finding.code === 'META_DESCRIPTION_MISSING'),
+      ).toBe(true);
+      expect(
+        findings.some((finding) => finding.code === 'NON_HTML_RESPONSE'),
+      ).toBe(true);
+      expect(
+        findings.some((finding) => finding.code === 'FAILED_PAGE_RATE_HIGH'),
+      ).toBe(false);
+      expect(findings.filter((finding) => finding.crawledPageId).length).toBe(
+        persistedAuditRun.criticalFindingCount +
+          persistedAuditRun.highFindingCount +
+          persistedAuditRun.mediumFindingCount +
+          persistedAuditRun.lowFindingCount +
+          persistedAuditRun.infoFindingCount -
+          findings.filter((finding) => finding.crawledPageId === null).length,
+      );
       expect(
         pages.filter(
           (page) => page.fetchStatus === CrawledPageFetchStatus.SUCCESS,
@@ -412,6 +442,9 @@ describe('runTechnicalCrawl', () => {
       const firstCount = await db.crawledPage.count({
         where: { auditRunId: fixture.auditRun.id },
       });
+      const firstFindingCount = await db.finding.count({
+        where: { auditRunId: fixture.auditRun.id },
+      });
 
       await db.auditRun.update({
         where: { id: fixture.auditRun.id },
@@ -428,6 +461,11 @@ describe('runTechnicalCrawl', () => {
           where: { auditRunId: fixture.auditRun.id },
         }),
       ).toBe(firstCount);
+      expect(
+        await db.finding.count({
+          where: { auditRunId: fixture.auditRun.id },
+        }),
+      ).toBe(firstFindingCount);
     } finally {
       await server.close();
     }

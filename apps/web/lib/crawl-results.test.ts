@@ -11,6 +11,7 @@ import {
 import type { AuthorizedAppContext } from './authorized-app-context';
 import {
   CRAWLED_PAGE_PAGE_SIZE,
+  getAuditReportForWorkspace,
   getAuditRunForWorkspace,
   getCrawledPageForAudit,
   listCrawledPagesForAudit,
@@ -279,5 +280,147 @@ describe('crawl results queries', () => {
     expect(sortedByStatus.pages.map((page) => page.normalizedUrl)).toEqual([
       'https://sorted.example.com/b',
     ]);
+  });
+
+  it('returns tenant-scoped prioritized findings ordered by priority and severity', async () => {
+    const ownerContext = await createAuthorizedContext('findings-owner');
+    const otherContext = await createAuthorizedContext('findings-other');
+
+    const site = await db.site.create({
+      data: {
+        workspaceId: ownerContext.workspace.id,
+        name: 'Report Site',
+        primaryUrl: 'https://report.example.com',
+        normalizedPrimaryUrl: 'https://report.example.com',
+      },
+    });
+
+    const auditRun = await db.auditRun.create({
+      data: {
+        status: AuditRunStatus.COMPLETED,
+        workspaceId: ownerContext.workspace.id,
+        siteId: site.id,
+        criticalFindingCount: 1,
+        highFindingCount: 2,
+        mediumFindingCount: 0,
+        lowFindingCount: 0,
+        infoFindingCount: 0,
+        pagesWithFindingsCount: 2,
+      },
+    });
+
+    const pageA = await db.crawledPage.create({
+      data: {
+        auditRunId: auditRun.id,
+        crawlDepth: 0,
+        discoverySource: CrawledPageDiscoverySource.PRIMARY,
+        fetchStatus: CrawledPageFetchStatus.SUCCESS,
+        isIndexable: true,
+        normalizedUrl: 'https://report.example.com/a',
+        redirectCount: 0,
+        requestedUrl: 'https://report.example.com/a',
+        siteId: site.id,
+        title: 'Page A',
+        workspaceId: ownerContext.workspace.id,
+      },
+    });
+
+    const pageB = await db.crawledPage.create({
+      data: {
+        auditRunId: auditRun.id,
+        crawlDepth: 0,
+        discoverySource: CrawledPageDiscoverySource.LINK,
+        fetchStatus: CrawledPageFetchStatus.SUCCESS,
+        isIndexable: false,
+        normalizedUrl: 'https://report.example.com/b',
+        redirectCount: 0,
+        requestedUrl: 'https://report.example.com/b',
+        siteId: site.id,
+        title: 'Page B',
+        workspaceId: ownerContext.workspace.id,
+      },
+    });
+
+    await db.finding.createMany({
+      data: [
+        {
+          auditRunId: auditRun.id,
+          category: 'CRAWL',
+          code: 'FETCH_FAILED',
+          crawledPageId: pageA.id,
+          explanation: 'Explanation',
+          priorityScore: 100,
+          recommendedAction: 'Action',
+          severity: 'CRITICAL',
+          siteId: site.id,
+          title: 'Page fetch failed',
+          workspaceId: ownerContext.workspace.id,
+        },
+        {
+          auditRunId: auditRun.id,
+          category: 'METADATA',
+          code: 'TITLE_MISSING',
+          crawledPageId: pageA.id,
+          explanation: 'Explanation',
+          priorityScore: 100,
+          recommendedAction: 'Action',
+          severity: 'HIGH',
+          siteId: site.id,
+          title: 'Title missing',
+          workspaceId: ownerContext.workspace.id,
+        },
+        {
+          auditRunId: auditRun.id,
+          category: 'INDEXABILITY',
+          code: 'NOINDEX_PAGE',
+          crawledPageId: pageB.id,
+          explanation: 'Explanation',
+          priorityScore: 70,
+          recommendedAction: 'Action',
+          severity: 'HIGH',
+          siteId: site.id,
+          title: 'Page marked noindex',
+          workspaceId: ownerContext.workspace.id,
+        },
+      ],
+    });
+
+    const ownerReport = await getAuditReportForWorkspace(
+      ownerContext,
+      site.id,
+      auditRun.id,
+      {},
+      db,
+    );
+
+    expect(ownerReport?.topPriorityPages.map((page) => page.url)).toEqual([
+      'https://report.example.com/a',
+      'https://report.example.com/b',
+    ]);
+    expect(ownerReport?.findingsByIssue[0]).toMatchObject({
+      affectedPageCount: 1,
+      code: 'FETCH_FAILED',
+      severity: 'CRITICAL',
+    });
+
+    const filteredReport = await getAuditReportForWorkspace(
+      ownerContext,
+      site.id,
+      auditRun.id,
+      {
+        indexableOnly: true,
+        severity: 'HIGH',
+      },
+      db,
+    );
+
+    expect(filteredReport?.topPriorityPages).toHaveLength(1);
+    expect(filteredReport?.topPriorityPages[0]?.url).toBe(
+      'https://report.example.com/a',
+    );
+
+    await expect(
+      getAuditReportForWorkspace(otherContext, site.id, auditRun.id, {}, db),
+    ).resolves.toBeNull();
   });
 });

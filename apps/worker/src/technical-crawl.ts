@@ -15,10 +15,12 @@ import {
   type FetchImpl,
   type ParsedRobotsTxt,
 } from '@site-quality-audit/crawler';
+import { generateFindingsForAudit } from '@site-quality-audit/findings';
 import {
   AuditRunStatus,
   CrawledPageDiscoverySource,
   CrawledPageFetchStatus,
+  Prisma,
   getPrismaClient,
 } from '@site-quality-audit/database';
 import { WORKER_SERVICE_NAME } from '@site-quality-audit/domain';
@@ -81,6 +83,38 @@ const isPrimaryAuditFailure = (
 
 const pickWarning = (warnings: CrawlWarning[]) => warnings[0] || null;
 
+const pageFindingPageSelect = {
+  canonicalUrl: true,
+  canonicalWarningCode: true,
+  contentType: true,
+  fetchStatus: true,
+  finalUrl: true,
+  firstH1: true,
+  h1Count: true,
+  h2Count: true,
+  hasViewportMeta: true,
+  htmlLang: true,
+  id: true,
+  imagesMissingAltCount: true,
+  internalLinkCount: true,
+  isIndexable: true,
+  metaDescription: true,
+  metaDescriptionLength: true,
+  metaRobots: true,
+  normalizedUrl: true,
+  openGraphDescription: true,
+  openGraphTitle: true,
+  redirectCount: true,
+  responseSizeBytes: true,
+  responseTimeMs: true,
+  statusCode: true,
+  structuredDataCount: true,
+  title: true,
+  titleLength: true,
+  visibleWordCount: true,
+  xRobotsTag: true,
+} satisfies Prisma.CrawledPageSelect;
+
 const updateAuditProgress = async (
   auditRunId: string,
   progress: CrawlProgress,
@@ -98,6 +132,109 @@ const updateAuditProgress = async (
       ...fields,
     },
   });
+
+const persistAuditFindings = async ({
+  auditRunId,
+  crawlLimitReached,
+  primaryUrl,
+  robotsTxtExists,
+  robotsTxtStatusCode,
+  robotsWarningCode,
+  robotsWarningMessage,
+  sitemapCount,
+  sitemapUrlCount,
+  sitemapWarningCode,
+  sitemapWarningMessage,
+}: {
+  auditRunId: string;
+  crawlLimitReached: boolean;
+  primaryUrl: string;
+  robotsTxtExists: boolean | null;
+  robotsTxtStatusCode: number | null;
+  robotsWarningCode: string | null;
+  robotsWarningMessage: string | null;
+  sitemapCount: number;
+  sitemapUrlCount: number;
+  sitemapWarningCode: string | null;
+  sitemapWarningMessage: string | null;
+}) => {
+  const prisma = getPrismaClient();
+  const pages = await prisma.crawledPage.findMany({
+    where: { auditRunId },
+    orderBy: { normalizedUrl: 'asc' },
+    select: pageFindingPageSelect,
+  });
+
+  const generated = generateFindingsForAudit({
+    crawlLimitReached,
+    crawledUrlCount: pages.filter((page) => page.fetchStatus !== 'FAILED')
+      .length,
+    excludedUrlCount: pages.filter((page) => page.fetchStatus === 'EXCLUDED')
+      .length,
+    failedUrlCount: pages.filter((page) => page.fetchStatus === 'FAILED')
+      .length,
+    pages,
+    primaryUrl,
+    queuedUrlCount: pages.filter((page) => page.fetchStatus !== 'EXCLUDED')
+      .length,
+    robotsTxtExists,
+    robotsTxtStatusCode,
+    robotsWarningCode,
+    robotsWarningMessage,
+    sitemapCount,
+    sitemapUrlCount,
+    sitemapWarningCode,
+    sitemapWarningMessage,
+  });
+
+  await prisma.$transaction(async (tx) => {
+    const auditRun = await tx.auditRun.findUniqueOrThrow({
+      where: { id: auditRunId },
+      select: {
+        siteId: true,
+        workspaceId: true,
+      },
+    });
+
+    await tx.finding.deleteMany({
+      where: { auditRunId },
+    });
+
+    if (generated.findings.length > 0) {
+      await tx.finding.createMany({
+        data: generated.findings.map(
+          (finding): Prisma.FindingCreateManyInput => ({
+            auditRunId,
+            category: finding.category,
+            code: finding.code,
+            crawledPageId: finding.crawledPageId,
+            evidenceJson: finding.evidenceJson ?? undefined,
+            explanation: finding.explanation,
+            priorityScore: finding.priorityScore,
+            recommendedAction: finding.recommendedAction,
+            severity: finding.severity,
+            siteId: auditRun.siteId,
+            title: finding.title,
+            workspaceId: auditRun.workspaceId,
+          }),
+        ),
+      });
+    }
+
+    await tx.auditRun.update({
+      where: { id: auditRunId },
+      data: {
+        criticalFindingCount: generated.summary.criticalFindingCount,
+        findingsGeneratedAt: new Date(),
+        highFindingCount: generated.summary.highFindingCount,
+        infoFindingCount: generated.summary.infoFindingCount,
+        lowFindingCount: generated.summary.lowFindingCount,
+        mediumFindingCount: generated.summary.mediumFindingCount,
+        pagesWithFindingsCount: generated.summary.pagesWithFindingsCount,
+      },
+    });
+  });
+};
 
 const upsertCrawledPage = async (
   auditRunId: string,
@@ -282,6 +419,10 @@ export const runTechnicalCrawl = async (
   const completed = new Set<string>();
   const queue: CrawlQueueItem[] = [];
   let nextRequestAt = 0;
+  let crawlLimitReached = false;
+  let robotsWarningCode: string | null = null;
+  let robotsWarningMessage: string | null = null;
+  let sitemapWarningCode: string | null = null;
   let sitemapWarningMessage: string | null = null;
 
   const waitForRequestTurn = async () => {
@@ -343,6 +484,7 @@ export const runTechnicalCrawl = async (
     }
 
     if (progress.queuedUrlCount >= limits.maxPages) {
+      crawlLimitReached = true;
       return;
     }
 
@@ -381,9 +523,13 @@ export const runTechnicalCrawl = async (
     ],
   });
 
-  sitemapWarningMessage =
-    pickWarning([...robots.warnings, ...sitemapDiscovery.warnings])?.message ||
-    null;
+  const robotsWarning = pickWarning(robots.warnings);
+  const sitemapWarning = pickWarning(sitemapDiscovery.warnings);
+
+  robotsWarningCode = robotsWarning?.code || null;
+  robotsWarningMessage = robotsWarning?.message || null;
+  sitemapWarningCode = sitemapWarning?.code || null;
+  sitemapWarningMessage = sitemapWarning?.message || null;
 
   await enqueueUrl(primaryUrl, CrawledPageDiscoverySource.PRIMARY, 0, robots);
 
@@ -396,10 +542,14 @@ export const runTechnicalCrawl = async (
     robotsTxtFetchedAt: robots.fetchedAt,
     robotsTxtStatusCode: robots.statusCode,
     robotsTxtUrl: robotsUrl,
+    robotsWarningCode,
+    robotsWarningCount: robots.warnings.length,
+    robotsWarningMessage,
+    crawlLimitReached,
     sitemapCount: sitemapDiscovery.sitemapCount,
     sitemapUrlCount: sitemapDiscovery.pageUrls.length,
-    sitemapWarningCount:
-      robots.warnings.length + sitemapDiscovery.warnings.length,
+    sitemapWarningCode,
+    sitemapWarningCount: sitemapDiscovery.warnings.length,
     sitemapWarningMessage,
   });
 
@@ -547,16 +697,37 @@ export const runTechnicalCrawl = async (
     await updateAuditProgress(auditRunId, progress);
   }
 
+  await persistAuditFindings({
+    auditRunId,
+    crawlLimitReached,
+    primaryUrl,
+    robotsTxtExists: robots.exists,
+    robotsTxtStatusCode: robots.statusCode,
+    robotsWarningCode,
+    robotsWarningMessage,
+    sitemapCount: sitemapDiscovery.sitemapCount,
+    sitemapUrlCount: sitemapDiscovery.pageUrls.length,
+    sitemapWarningCode,
+    sitemapWarningMessage,
+  });
+
   await prisma.auditRun.update({
     where: { id: auditRunId },
     data: {
       completedAt: new Date(),
+      crawlLimitReached,
       crawledUrlCount: progress.crawledUrlCount,
       discoveredUrlCount: progress.discoveredUrlCount,
       excludedUrlCount: progress.excludedUrlCount,
       failedUrlCount: progress.failedUrlCount,
       progressUpdatedAt: new Date(),
       queuedUrlCount: progress.queuedUrlCount,
+      robotsWarningCode,
+      robotsWarningCount: robots.warnings.length,
+      robotsWarningMessage,
+      sitemapWarningCode,
+      sitemapWarningCount: sitemapDiscovery.warnings.length,
+      sitemapWarningMessage,
       status: AuditRunStatus.COMPLETED,
     },
   });

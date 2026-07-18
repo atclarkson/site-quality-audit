@@ -13,6 +13,7 @@ type SerializableAuditRunDetail = Omit<
   | 'completedAt'
   | 'createdAt'
   | 'failedAt'
+  | 'findingsGeneratedAt'
   | 'progressUpdatedAt'
   | 'robotsTxtFetchedAt'
   | 'startedAt'
@@ -21,6 +22,7 @@ type SerializableAuditRunDetail = Omit<
   completedAt: string | null;
   createdAt: string;
   failedAt: string | null;
+  findingsGeneratedAt: string | null;
   progressUpdatedAt: string | null;
   robotsTxtFetchedAt: string | null;
   startedAt: string | null;
@@ -29,6 +31,17 @@ type SerializableAuditRunDetail = Omit<
 
 const isLiveStatus = (status: string) =>
   status === 'QUEUED' || status === 'RUNNING';
+
+const summaryStats = (auditRun: SerializableAuditRunDetail) => [
+  { label: 'Total pages crawled', value: auditRun.crawledUrlCount },
+  { label: 'Pages with findings', value: auditRun.pagesWithFindingsCount },
+  { label: 'Critical', value: auditRun.criticalFindingCount },
+  { label: 'High', value: auditRun.highFindingCount },
+  { label: 'Medium', value: auditRun.mediumFindingCount },
+  { label: 'Low', value: auditRun.lowFindingCount },
+  { label: 'Failed pages', value: auditRun.failedUrlCount },
+  { label: 'Excluded pages', value: auditRun.excludedUrlCount },
+];
 
 export function AuditDetailPanel({
   auditRunId,
@@ -65,47 +78,66 @@ export function AuditDetailPanel({
   }, [auditRun.status, auditRunId, siteId]);
 
   return (
-    <section>
-      <h1>Audit detail</h1>
-      <p>Status: {auditRun.status}</p>
-      <p>Discovered: {auditRun.discoveredUrlCount}</p>
-      <p>Queued: {auditRun.queuedUrlCount}</p>
-      <p>Crawled: {auditRun.crawledUrlCount}</p>
-      <p>Failed: {auditRun.failedUrlCount}</p>
-      <p>Excluded: {auditRun.excludedUrlCount}</p>
-      <p>
-        Total page records:{' '}
-        {auditRun.crawledUrlCount +
-          auditRun.failedUrlCount +
-          auditRun.excludedUrlCount}
-      </p>
-      <p>Robots.txt status: {auditRun.robotsTxtStatusCode ?? 'Not fetched'}</p>
-      <p>Robots.txt URL: {auditRun.robotsTxtUrl || 'Not available'}</p>
-      <p>Robots.txt exists: {auditRun.robotsTxtExists ? 'Yes' : 'No'}</p>
-      <p>Sitemaps fetched: {auditRun.sitemapCount}</p>
-      <p>Sitemap URLs discovered: {auditRun.sitemapUrlCount}</p>
-      <p>Sitemap warnings: {auditRun.sitemapWarningCount}</p>
-      <p>
-        Last progress update:{' '}
-        {auditRun.progressUpdatedAt
-          ? dateFormatter.format(new Date(auditRun.progressUpdatedAt))
-          : 'Not available'}
-      </p>
-      {auditRun.sitemapWarningMessage ? (
-        <p>Sitemap note: {auditRun.sitemapWarningMessage}</p>
-      ) : null}
-      <p>
-        Started:{' '}
-        {auditRun.startedAt
-          ? dateFormatter.format(new Date(auditRun.startedAt))
-          : 'Not started'}
-      </p>
-      <p>
-        Completed:{' '}
-        {auditRun.completedAt
-          ? dateFormatter.format(new Date(auditRun.completedAt))
-          : 'Not completed'}
-      </p>
+    <section className="report-section">
+      <div className="section-heading">
+        <div>
+          <h1>Prioritized audit report</h1>
+          <p>
+            Status: <strong>{auditRun.status}</strong>
+          </p>
+        </div>
+      </div>
+
+      <div className="summary-grid">
+        {summaryStats(auditRun).map((stat) => (
+          <article key={stat.label} className="summary-card">
+            <span className="summary-label">{stat.label}</span>
+            <strong className="summary-value">{stat.value}</strong>
+          </article>
+        ))}
+      </div>
+
+      <div className="site-meta compact-meta">
+        <div>
+          <dt>Queued</dt>
+          <dd>{dateFormatter.format(new Date(auditRun.createdAt))}</dd>
+        </div>
+        <div>
+          <dt>Started</dt>
+          <dd>
+            {auditRun.startedAt
+              ? dateFormatter.format(new Date(auditRun.startedAt))
+              : 'Not started'}
+          </dd>
+        </div>
+        <div>
+          <dt>Completed</dt>
+          <dd>
+            {auditRun.completedAt
+              ? dateFormatter.format(new Date(auditRun.completedAt))
+              : 'Not completed'}
+          </dd>
+        </div>
+        <div>
+          <dt>Findings generated</dt>
+          <dd>
+            {auditRun.findingsGeneratedAt
+              ? dateFormatter.format(new Date(auditRun.findingsGeneratedAt))
+              : 'Not yet'}
+          </dd>
+        </div>
+        <div>
+          <dt>Robots.txt</dt>
+          <dd>{auditRun.robotsTxtStatusCode ?? 'Not fetched'}</dd>
+        </div>
+        <div>
+          <dt>Sitemaps</dt>
+          <dd>
+            {auditRun.sitemapCount} fetched, {auditRun.sitemapUrlCount} URLs
+          </dd>
+        </div>
+      </div>
+
       {auditRun.errorMessage ? <p>Error: {auditRun.errorMessage}</p> : null}
     </section>
   );
