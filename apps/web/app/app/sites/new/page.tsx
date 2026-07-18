@@ -1,13 +1,8 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import {
-  createSiteForWorkspace,
-  createEmptySiteFormState,
-  siteValuesFromFormData,
-  toSiteFormErrorState,
-  type SiteFormState,
-} from '../../../../lib/site-management';
+import { createEmptySiteFormState } from '../../../../lib/site-management';
 import { getAuthorizedAppContext } from '../../../../lib/authorized-app-context';
+import { createCreateSiteAction } from '../../../../lib/site-actions';
 import { SiteForm } from '../site-form';
 
 export default async function NewSitePage() {
@@ -16,22 +11,6 @@ export default async function NewSitePage() {
   if (!context) {
     redirect('/');
   }
-
-  const createSiteAction = async (
-    _previousState: SiteFormState,
-    formData: FormData,
-  ) => {
-    'use server';
-
-    const values = siteValuesFromFormData(formData);
-
-    try {
-      const site = await createSiteForWorkspace(context, values);
-      redirect(`/app/sites/${site.id}`);
-    } catch (error) {
-      return toSiteFormErrorState(error, values);
-    }
-  };
 
   return (
     <main>
@@ -44,7 +23,7 @@ export default async function NewSitePage() {
           Register a primary site URL and optional sitemap for this workspace.
         </p>
         <SiteForm
-          action={createSiteAction}
+          action={createCreateSiteAction()}
           cancelHref="/app"
           initialState={createEmptySiteFormState()}
           submitLabel="Create site"

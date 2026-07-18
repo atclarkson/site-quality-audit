@@ -3,12 +3,9 @@ import { redirect } from 'next/navigation';
 import { getAuthorizedAppContext } from '../../../../../lib/authorized-app-context';
 import {
   getSiteForWorkspace,
-  siteValuesFromFormData,
-  toSiteFormErrorState,
   toSiteFormState,
-  updateSiteForWorkspace,
-  type SiteFormState,
 } from '../../../../../lib/site-management';
+import { createUpdateSiteAction } from '../../../../../lib/site-actions';
 import { SiteForm } from '../../site-form';
 
 export default async function EditSitePage({
@@ -29,27 +26,6 @@ export default async function EditSitePage({
     redirect('/app');
   }
 
-  const updateSiteAction = async (
-    _previousState: SiteFormState,
-    formData: FormData,
-  ) => {
-    'use server';
-
-    const values = siteValuesFromFormData(formData);
-
-    try {
-      const updatedSite = await updateSiteForWorkspace(context, siteId, values);
-
-      if (!updatedSite) {
-        redirect('/app');
-      }
-
-      redirect(`/app/sites/${siteId}`);
-    } catch (error) {
-      return toSiteFormErrorState(error, values);
-    }
-  };
-
   return (
     <main>
       <section>
@@ -58,7 +34,7 @@ export default async function EditSitePage({
         </p>
         <h1>Edit {site.name}</h1>
         <SiteForm
-          action={updateSiteAction}
+          action={createUpdateSiteAction(siteId)}
           cancelHref={`/app/sites/${siteId}`}
           initialState={toSiteFormState({
             name: site.name,

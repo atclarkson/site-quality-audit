@@ -1,10 +1,8 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getAuthorizedAppContext } from '../../../../lib/authorized-app-context';
-import {
-  deleteSiteForWorkspace,
-  getSiteForWorkspace,
-} from '../../../../lib/site-management';
+import { createDeleteSiteAction } from '../../../../lib/site-actions';
+import { getSiteForWorkspace } from '../../../../lib/site-management';
 
 const dateFormatter = new Intl.DateTimeFormat('en-US', {
   dateStyle: 'medium',
@@ -28,13 +26,6 @@ export default async function SiteDetailPage({
   if (!site) {
     redirect('/app');
   }
-
-  const deleteSiteAction = async () => {
-    'use server';
-
-    await deleteSiteForWorkspace(context, siteId);
-    redirect('/app');
-  };
 
   return (
     <main>
@@ -72,7 +63,7 @@ export default async function SiteDetailPage({
             This removes the site record from your workspace. It does not affect
             any other workspace.
           </p>
-          <form action={deleteSiteAction}>
+          <form action={createDeleteSiteAction(siteId)}>
             <button type="submit" className="danger-button">
               Confirm delete
             </button>

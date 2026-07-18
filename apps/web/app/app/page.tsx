@@ -44,7 +44,6 @@ export default async function AppPage() {
             ))}
           </ul>
         )}
-        <p>Private workspace slug: {context.workspace.slug}</p>
         <SignOutButton />
       </section>
     </main>
