@@ -21,7 +21,17 @@ const databaseUrlSchema = z
     }
   }, 'Expected a valid postgresql:// connection string');
 
+const requiredSecretSchema = z.string().min(1, 'Required');
+const booleanStringSchema = z
+  .enum(['true', 'false'])
+  .default('false')
+  .transform((value) => value === 'true');
+
 const webEnvSchema = z.object({
+  AUTH_GOOGLE_ID: requiredSecretSchema,
+  AUTH_GOOGLE_SECRET: requiredSecretSchema,
+  AUTH_SECRET: requiredSecretSchema,
+  AUTH_TRUST_HOST: booleanStringSchema,
   DATABASE_URL: databaseUrlSchema,
   NODE_ENV: nodeEnvSchema,
   PORT: portSchema.optional().default(3000),

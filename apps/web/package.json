@@ -8,10 +8,12 @@
     "lint": "eslint . --ext .ts,.tsx"
   },
   "dependencies": {
+    "@auth/prisma-adapter": "^2.11.0",
     "@site-quality-audit/config": "workspace:*",
     "@site-quality-audit/database": "workspace:*",
     "@site-quality-audit/domain": "workspace:*",
     "next": "^16.0.0",
+    "next-auth": "^5.0.0-beta.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   }
