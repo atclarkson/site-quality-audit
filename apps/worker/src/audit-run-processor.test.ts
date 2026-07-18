@@ -12,7 +12,11 @@ import {
   createAuditWorker,
   getAuditJobId,
 } from '@site-quality-audit/queue';
+vi.mock('./technical-crawl', () => ({
+  runTechnicalCrawl: vi.fn(),
+}));
 import { markAuditRunFailure, processAuditJob } from './audit-run-processor';
+import { runTechnicalCrawl } from './technical-crawl';
 
 const { DATABASE_URL } = parseDatabaseEnv(process.env);
 const { REDIS_URL } = parseWorkerEnv({
@@ -103,6 +107,8 @@ const waitForAuditRunStatus = async (
 };
 
 afterEach(async () => {
+  vi.clearAllMocks();
+
   while (queueResources.length > 0) {
     const resource = queueResources.pop();
 
@@ -129,8 +135,17 @@ afterAll(async () => {
 describe('audit worker', () => {
   it('processes a queued BullMQ audit job and persists completion state', async () => {
     const fixture = await createAuditFixture();
+    vi.mocked(runTechnicalCrawl).mockImplementation(async (auditRunId) => {
+      await db.auditRun.update({
+        where: { id: auditRunId },
+        data: {
+          completedAt: new Date(),
+          status: AuditRunStatus.COMPLETED,
+        },
+      });
+    });
     const workerResources = createAuditWorker(REDIS_URL, async (job) =>
-      processAuditJob(job.data, { delayMs: 25 }),
+      processAuditJob(job.data),
     );
     const queueResourcesEntry = createAuditQueue(REDIS_URL);
     queueResources.push(workerResources, queueResourcesEntry);
@@ -155,6 +170,7 @@ describe('audit worker', () => {
 
       expect(completedAuditRun.startedAt).not.toBeNull();
       expect(completedAuditRun.completedAt).not.toBeNull();
+      expect(runTechnicalCrawl).toHaveBeenCalledWith(fixture.auditRun.id);
     } finally {
       await db.workspace.delete({ where: { id: fixture.workspace.id } });
     }

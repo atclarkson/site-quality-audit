@@ -31,6 +31,20 @@ const auditRunSummarySelect = {
   startedAt: true,
   completedAt: true,
   failedAt: true,
+  discoveredUrlCount: true,
+  queuedUrlCount: true,
+  crawledUrlCount: true,
+  failedUrlCount: true,
+  excludedUrlCount: true,
+  progressUpdatedAt: true,
+  robotsTxtUrl: true,
+  robotsTxtStatusCode: true,
+  robotsTxtFetchedAt: true,
+  robotsTxtExists: true,
+  sitemapCount: true,
+  sitemapUrlCount: true,
+  sitemapWarningCount: true,
+  sitemapWarningMessage: true,
   errorCode: true,
   errorMessage: true,
 } satisfies Prisma.AuditRunSelect;
@@ -46,11 +60,19 @@ export type SiteAuditSnapshot = {
 
 export type SerializableSiteAuditRunSummary = Omit<
   SiteAuditRunSummary,
-  'completedAt' | 'createdAt' | 'failedAt' | 'startedAt' | 'updatedAt'
+  | 'completedAt'
+  | 'createdAt'
+  | 'failedAt'
+  | 'progressUpdatedAt'
+  | 'robotsTxtFetchedAt'
+  | 'startedAt'
+  | 'updatedAt'
 > & {
   completedAt: string | null;
   createdAt: string;
   failedAt: string | null;
+  progressUpdatedAt: string | null;
+  robotsTxtFetchedAt: string | null;
   startedAt: string | null;
   updatedAt: string;
 };
@@ -159,6 +181,8 @@ const serializeAuditRunSummary = (
   completedAt: auditRun.completedAt?.toISOString() || null,
   createdAt: auditRun.createdAt.toISOString(),
   failedAt: auditRun.failedAt?.toISOString() || null,
+  progressUpdatedAt: auditRun.progressUpdatedAt?.toISOString() || null,
+  robotsTxtFetchedAt: auditRun.robotsTxtFetchedAt?.toISOString() || null,
   startedAt: auditRun.startedAt?.toISOString() || null,
   updatedAt: auditRun.updatedAt.toISOString(),
 });

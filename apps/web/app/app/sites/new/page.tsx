@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createEmptySiteFormState } from '../../../../lib/site-management';
 import { getAuthorizedAppContext } from '../../../../lib/authorized-app-context';
-import { createCreateSiteAction } from '../../../../lib/site-actions';
+import { createSiteAction } from '../../../../lib/site-actions';
 import { SiteForm } from '../site-form';
 
 export default async function NewSitePage() {
@@ -23,7 +23,7 @@ export default async function NewSitePage() {
           Register a primary site URL and optional sitemap for this workspace.
         </p>
         <SiteForm
-          action={createCreateSiteAction()}
+          action={createSiteAction}
           cancelHref="/app"
           initialState={createEmptySiteFormState()}
           submitLabel="Create site"

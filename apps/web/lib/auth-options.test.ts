@@ -166,4 +166,40 @@ describe('createAuthLogger', () => {
     expect(record).not.toContain('session-token');
     expect(record).not.toContain('user@example.com');
   });
+
+  it('does not send debug or warn auth events to console.error', () => {
+    const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const logger = createAuthLogger();
+
+    try {
+      logger.debug?.('OAuthCallback', {
+        access_token: 'access-token',
+      });
+      logger.warn?.('debug-enabled' as never);
+
+      expect(debugSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(errorSpy).not.toHaveBeenCalled();
+    } finally {
+      debugSpy.mockRestore();
+      errorSpy.mockRestore();
+      warnSpy.mockRestore();
+    }
+  });
+
+  it('does send real auth errors to console.error', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const logger = createAuthLogger();
+
+    try {
+      logger.error?.(new Error('OAuth provider failed'));
+
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      expect(String(errorSpy.mock.calls[0][0])).toContain('"level":"error"');
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
 });

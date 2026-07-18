@@ -7,12 +7,10 @@ import {
   type AuditJobPayload,
 } from '@site-quality-audit/queue';
 import { createLogger } from '@site-quality-audit/logging';
+import { runTechnicalCrawl } from './technical-crawl';
 
 const logger = createLogger({ service: WORKER_SERVICE_NAME });
 type AuditLogger = Pick<typeof logger, 'error' | 'info'>;
-
-const sleep = (durationMs: number) =>
-  new Promise((resolve) => setTimeout(resolve, durationMs));
 
 const getFailureState = (error: unknown) => ({
   errorCode: AUDIT_PROCESSING_ERROR_CODE,
@@ -20,10 +18,7 @@ const getFailureState = (error: unknown) => ({
   errorName: error instanceof Error ? error.name : 'UnknownError',
 });
 
-export const processAuditJob = async (
-  input: AuditJobPayload,
-  { delayMs = 1_500 }: { delayMs?: number } = {},
-) => {
+export const processAuditJob = async (input: AuditJobPayload) => {
   const payload = auditJobPayloadSchema.parse(input);
   const prisma = getPrismaClient();
 
@@ -72,23 +67,7 @@ export const processAuditJob = async (
     workspaceId: payload.workspaceId,
   });
 
-  await sleep(delayMs);
-
-  await prisma.auditRun.update({
-    where: {
-      id: payload.auditRunId,
-    },
-    data: {
-      status: AuditRunStatus.COMPLETED,
-      completedAt: new Date(),
-    },
-  });
-
-  logger.info('audit.run_completed', {
-    auditRunId: payload.auditRunId,
-    siteId: payload.siteId,
-    workspaceId: payload.workspaceId,
-  });
+  await runTechnicalCrawl(payload.auditRunId);
 };
 
 export const markAuditRunFailure = async (

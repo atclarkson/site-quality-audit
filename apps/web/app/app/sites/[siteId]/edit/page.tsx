@@ -5,7 +5,7 @@ import {
   getSiteForWorkspace,
   toSiteFormState,
 } from '../../../../../lib/site-management';
-import { createUpdateSiteAction } from '../../../../../lib/site-actions';
+import { updateSiteAction } from '../../../../../lib/site-actions';
 import { SiteForm } from '../../site-form';
 
 export default async function EditSitePage({
@@ -26,6 +26,8 @@ export default async function EditSitePage({
     redirect('/app');
   }
 
+  const action = updateSiteAction.bind(null, siteId);
+
   return (
     <main>
       <section>
@@ -34,7 +36,7 @@ export default async function EditSitePage({
         </p>
         <h1>Edit {site.name}</h1>
         <SiteForm
-          action={createUpdateSiteAction(siteId)}
+          action={action}
           cancelHref={`/app/sites/${siteId}`}
           initialState={toSiteFormState({
             name: site.name,

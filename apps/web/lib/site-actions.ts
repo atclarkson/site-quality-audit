@@ -1,3 +1,5 @@
+'use server';
+
 import { redirect } from 'next/navigation';
 import { getAuthorizedAppContext } from './authorized-app-context';
 import { startAuditForSite } from './audit-management';
@@ -10,141 +12,69 @@ import {
   type SiteFormState,
 } from './site-management';
 
-type RedirectFn = (path: string) => never;
+const resolveAuthorizedContext = async () => {
+  const context = await getAuthorizedAppContext();
 
-export const createCreateSiteAction = ({
-  createSiteForWorkspaceImpl = createSiteForWorkspace,
-  getAuthorizedAppContextImpl = getAuthorizedAppContext,
-  redirectImpl = redirect,
-}: {
-  createSiteForWorkspaceImpl?: typeof createSiteForWorkspace;
-  getAuthorizedAppContextImpl?: typeof getAuthorizedAppContext;
-  redirectImpl?: RedirectFn;
-} = {}) => {
-  return async (
-    _previousState: SiteFormState,
-    formData: FormData,
-  ): Promise<SiteFormState> => {
-    'use server';
+  if (!context) {
+    redirect('/');
+  }
 
-    const context = await getAuthorizedAppContextImpl();
-
-    if (!context) {
-      return redirectImpl('/');
-    }
-
-    const values = siteValuesFromFormData(formData);
-
-    let site;
-
-    try {
-      site = await createSiteForWorkspaceImpl(context, values);
-    } catch (error) {
-      return toSiteFormErrorState(error, values);
-    }
-
-    return redirectImpl(`/app/sites/${site.id}`);
-  };
+  return context;
 };
 
-export const createUpdateSiteAction = (
+export async function createSiteAction(
+  _previousState: SiteFormState,
+  formData: FormData,
+): Promise<SiteFormState> {
+  const context = await resolveAuthorizedContext();
+  const values = siteValuesFromFormData(formData);
+  let site;
+
+  try {
+    site = await createSiteForWorkspace(context, values);
+  } catch (error) {
+    return toSiteFormErrorState(error, values);
+  }
+
+  redirect(`/app/sites/${site.id}`);
+}
+
+export async function updateSiteAction(
   siteId: string,
-  {
-    getAuthorizedAppContextImpl = getAuthorizedAppContext,
-    redirectImpl = redirect,
-    updateSiteForWorkspaceImpl = updateSiteForWorkspace,
-  }: {
-    getAuthorizedAppContextImpl?: typeof getAuthorizedAppContext;
-    redirectImpl?: RedirectFn;
-    updateSiteForWorkspaceImpl?: typeof updateSiteForWorkspace;
-  } = {},
-) => {
-  return async (
-    _previousState: SiteFormState,
-    formData: FormData,
-  ): Promise<SiteFormState> => {
-    'use server';
+  _previousState: SiteFormState,
+  formData: FormData,
+): Promise<SiteFormState> {
+  const context = await resolveAuthorizedContext();
+  const values = siteValuesFromFormData(formData);
+  let site;
 
-    const context = await getAuthorizedAppContextImpl();
+  try {
+    site = await updateSiteForWorkspace(context, siteId, values);
+  } catch (error) {
+    return toSiteFormErrorState(error, values);
+  }
 
-    if (!context) {
-      return redirectImpl('/');
-    }
+  if (!site) {
+    redirect('/app');
+  }
 
-    const values = siteValuesFromFormData(formData);
-    const updateResult = await (async () => {
-      try {
-        return await updateSiteForWorkspaceImpl(context, siteId, values);
-      } catch (error) {
-        return toSiteFormErrorState(error, values);
-      }
-    })();
+  redirect(`/app/sites/${siteId}`);
+}
 
-    if (updateResult === null) {
-      return redirectImpl('/app');
-    }
+export async function deleteSiteAction(siteId: string) {
+  const context = await resolveAuthorizedContext();
 
-    if ('values' in updateResult) {
-      return updateResult;
-    }
+  await deleteSiteForWorkspace(context, siteId);
+  redirect('/app');
+}
 
-    return redirectImpl(`/app/sites/${siteId}`);
-  };
-};
+export async function startAuditAction(siteId: string) {
+  const context = await resolveAuthorizedContext();
+  const auditRun = await startAuditForSite(context, siteId);
 
-export const createDeleteSiteAction = (
-  siteId: string,
-  {
-    deleteSiteForWorkspaceImpl = deleteSiteForWorkspace,
-    getAuthorizedAppContextImpl = getAuthorizedAppContext,
-    redirectImpl = redirect,
-  }: {
-    deleteSiteForWorkspaceImpl?: typeof deleteSiteForWorkspace;
-    getAuthorizedAppContextImpl?: typeof getAuthorizedAppContext;
-    redirectImpl?: RedirectFn;
-  } = {},
-) => {
-  return async () => {
-    'use server';
+  if (!auditRun) {
+    redirect('/app');
+  }
 
-    const context = await getAuthorizedAppContextImpl();
-
-    if (!context) {
-      return redirectImpl('/');
-    }
-
-    await deleteSiteForWorkspaceImpl(context, siteId);
-    return redirectImpl('/app');
-  };
-};
-
-export const createStartAuditAction = (
-  siteId: string,
-  {
-    getAuthorizedAppContextImpl = getAuthorizedAppContext,
-    redirectImpl = redirect,
-    startAuditForSiteImpl = startAuditForSite,
-  }: {
-    getAuthorizedAppContextImpl?: typeof getAuthorizedAppContext;
-    redirectImpl?: RedirectFn;
-    startAuditForSiteImpl?: typeof startAuditForSite;
-  } = {},
-) => {
-  return async () => {
-    'use server';
-
-    const context = await getAuthorizedAppContextImpl();
-
-    if (!context) {
-      return redirectImpl('/');
-    }
-
-    const auditRun = await startAuditForSiteImpl(context, siteId);
-
-    if (!auditRun) {
-      return redirectImpl('/app');
-    }
-
-    return redirectImpl(`/app/sites/${siteId}`);
-  };
-};
+  redirect(`/app/sites/${siteId}/audits/${auditRun.id}`);
+}

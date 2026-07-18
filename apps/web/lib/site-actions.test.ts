@@ -1,19 +1,57 @@
 import { randomUUID } from 'node:crypto';
-import { afterAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseDatabaseEnv } from '@site-quality-audit/config';
 import {
   MembershipRole,
   createPrismaClient,
 } from '@site-quality-audit/database';
 import type { AuthorizedAppContext } from './authorized-app-context';
+
+const redirectSignal = Symbol('redirect');
+
+vi.mock('next/navigation', () => ({
+  redirect: vi.fn((path: string) => {
+    throw { path, redirectSignal };
+  }),
+}));
+
 vi.mock('./authorized-app-context', () => ({
   getAuthorizedAppContext: vi.fn(),
 }));
+
+vi.mock('./site-management', async () => {
+  const actual =
+    await vi.importActual<typeof import('./site-management')>(
+      './site-management',
+    );
+
+  return {
+    ...actual,
+    createSiteForWorkspace: vi.fn(actual.createSiteForWorkspace),
+    deleteSiteForWorkspace: vi.fn(actual.deleteSiteForWorkspace),
+    updateSiteForWorkspace: vi.fn(actual.updateSiteForWorkspace),
+  };
+});
+
+vi.mock('./audit-management', async () => {
+  const actual =
+    await vi.importActual<typeof import('./audit-management')>(
+      './audit-management',
+    );
+
+  return {
+    ...actual,
+    startAuditForSite: vi.fn(actual.startAuditForSite),
+  };
+});
+
+import { getAuthorizedAppContext } from './authorized-app-context';
+import { startAuditForSite } from './audit-management';
 import {
-  createCreateSiteAction,
-  createDeleteSiteAction,
-  createStartAuditAction,
-  createUpdateSiteAction,
+  createSiteAction,
+  deleteSiteAction,
+  startAuditAction,
+  updateSiteAction,
 } from './site-actions';
 import {
   createSiteForWorkspace,
@@ -84,60 +122,54 @@ const formDataFromValues = (values: Record<string, string>) => {
   return formData;
 };
 
-const redirectSignal = Symbol('redirect');
+beforeEach(async () => {
+  vi.clearAllMocks();
 
-const createRedirectStub = () =>
-  vi.fn((path: string) => {
-    throw { path, redirectSignal };
-  });
+  const siteManagementActual =
+    await vi.importActual<typeof import('./site-management')>(
+      './site-management',
+    );
+  const auditManagementActual =
+    await vi.importActual<typeof import('./audit-management')>(
+      './audit-management',
+    );
+
+  vi.mocked(createSiteForWorkspace).mockImplementation(
+    siteManagementActual.createSiteForWorkspace,
+  );
+  vi.mocked(deleteSiteForWorkspace).mockImplementation(
+    siteManagementActual.deleteSiteForWorkspace,
+  );
+  vi.mocked(updateSiteForWorkspace).mockImplementation(
+    siteManagementActual.updateSiteForWorkspace,
+  );
+  vi.mocked(startAuditForSite).mockImplementation(
+    auditManagementActual.startAuditForSite,
+  );
+});
 
 afterAll(async () => {
   await db.$disconnect();
 });
 
 describe('site server actions', () => {
-  it('rejects a mutation when no authenticated session exists at execution time', async () => {
-    const redirectImpl = createRedirectStub();
-    const createSiteForWorkspaceImpl = vi.fn();
-    const action = createCreateSiteAction({
-      createSiteForWorkspaceImpl,
-      getAuthorizedAppContextImpl: vi.fn().mockResolvedValue(null),
-      redirectImpl,
-    });
-
-    await expect(
-      action(
-        createEmptySiteFormState(),
-        formDataFromValues({
-          name: 'No Session Site',
-          primaryUrl: 'https://example.com',
-          sitemapUrl: '',
-        }),
-      ),
-    ).rejects.toMatchObject({ path: '/' });
-
-    expect(createSiteForWorkspaceImpl).not.toHaveBeenCalled();
-  });
-
-  it('uses the fresh authenticated session instead of stale render-time context', async () => {
+  it('re-authenticates create at execution time instead of using stale render state', async () => {
     const firstContext = await createAuthorizedContext('stale-first');
     const secondContext = await createAuthorizedContext('stale-second');
     let activeContext: AuthorizedAppContext | null = firstContext;
-    const createSiteForWorkspaceImpl = vi
-      .fn()
-      .mockResolvedValue({ id: 'site-1' });
-    const redirectImpl = createRedirectStub();
-    const action = createCreateSiteAction({
-      createSiteForWorkspaceImpl,
-      getAuthorizedAppContextImpl: vi.fn(async () => activeContext),
-      redirectImpl,
-    });
+
+    vi.mocked(getAuthorizedAppContext).mockImplementation(
+      async () => activeContext,
+    );
+    vi.mocked(createSiteForWorkspace).mockResolvedValue({
+      id: 'site-1',
+    } as never);
 
     try {
       activeContext = secondContext;
 
       await expect(
-        action(
+        createSiteAction(
           createEmptySiteFormState(),
           formDataFromValues({
             name: 'Fresh Context Site',
@@ -147,7 +179,7 @@ describe('site server actions', () => {
         ),
       ).rejects.toMatchObject({ path: '/app/sites/site-1' });
 
-      expect(createSiteForWorkspaceImpl).toHaveBeenCalledWith(secondContext, {
+      expect(createSiteForWorkspace).toHaveBeenCalledWith(secondContext, {
         name: 'Fresh Context Site',
         primaryUrl: 'https://example.com',
         sitemapUrl: '',
@@ -163,10 +195,48 @@ describe('site server actions', () => {
     }
   });
 
-  it('update still cannot affect another workspace', async () => {
+  it('fails closed when unauthenticated for create, update, delete, and start-audit', async () => {
+    vi.mocked(getAuthorizedAppContext).mockResolvedValue(null);
+
+    await expect(
+      createSiteAction(
+        createEmptySiteFormState(),
+        formDataFromValues({
+          name: 'No Session Site',
+          primaryUrl: 'https://example.com',
+          sitemapUrl: '',
+        }),
+      ),
+    ).rejects.toMatchObject({ path: '/' });
+    await expect(
+      updateSiteAction(
+        'site-1',
+        createEmptySiteFormState(),
+        formDataFromValues({
+          name: 'No Session Site',
+          primaryUrl: 'https://example.com',
+          sitemapUrl: '',
+        }),
+      ),
+    ).rejects.toMatchObject({ path: '/' });
+    await expect(deleteSiteAction('site-1')).rejects.toMatchObject({
+      path: '/',
+    });
+    await expect(startAuditAction('site-1')).rejects.toMatchObject({
+      path: '/',
+    });
+
+    expect(createSiteForWorkspace).not.toHaveBeenCalled();
+    expect(updateSiteForWorkspace).not.toHaveBeenCalled();
+    expect(deleteSiteForWorkspace).not.toHaveBeenCalled();
+    expect(startAuditForSite).not.toHaveBeenCalled();
+  });
+
+  it('keeps a bound siteId tenant-scoped for update', async () => {
     const ownerContext = await createAuthorizedContext('action-owner-update');
     const otherContext = await createAuthorizedContext('action-other-update');
-    const redirectImpl = createRedirectStub();
+
+    vi.mocked(getAuthorizedAppContext).mockResolvedValue(otherContext);
 
     try {
       const site = await createSiteForWorkspace(
@@ -179,14 +249,9 @@ describe('site server actions', () => {
         db,
       );
 
-      const action = createUpdateSiteAction(site.id, {
-        getAuthorizedAppContextImpl: vi.fn().mockResolvedValue(otherContext),
-        redirectImpl,
-        updateSiteForWorkspaceImpl: updateSiteForWorkspace,
-      });
-
       await expect(
-        action(
+        updateSiteAction(
+          site.id,
           createEmptySiteFormState(),
           formDataFromValues({
             name: 'Hijacked Name',
@@ -216,33 +281,34 @@ describe('site server actions', () => {
     }
   });
 
-  it('delete still cannot affect another workspace', async () => {
-    const ownerContext = await createAuthorizedContext('action-owner-delete');
-    const otherContext = await createAuthorizedContext('action-other-delete');
-    const redirectImpl = createRedirectStub();
+  it('blocks cross-workspace delete and start-audit mutations', async () => {
+    const ownerContext = await createAuthorizedContext('action-owner-mutate');
+    const otherContext = await createAuthorizedContext('action-other-mutate');
+
+    vi.mocked(getAuthorizedAppContext).mockResolvedValue(otherContext);
 
     try {
       const site = await createSiteForWorkspace(
         ownerContext,
         {
-          name: 'Protected Delete Site',
-          primaryUrl: 'https://protected-delete.example.com',
+          name: 'Protected Site',
+          primaryUrl: 'https://protected-mutate.example.com',
           sitemapUrl: '',
         },
         db,
       );
 
-      const action = createDeleteSiteAction(site.id, {
-        deleteSiteForWorkspaceImpl: async (context, currentSiteId) =>
-          deleteSiteForWorkspace(context, currentSiteId, db),
-        getAuthorizedAppContextImpl: vi.fn().mockResolvedValue(otherContext),
-        redirectImpl,
+      await expect(deleteSiteAction(site.id)).rejects.toMatchObject({
+        path: '/app',
       });
-
-      await expect(action()).rejects.toMatchObject({ path: '/app' });
       expect(
         await getSiteForWorkspace(ownerContext, site.id, db),
       ).not.toBeNull();
+
+      await expect(startAuditAction(site.id)).rejects.toMatchObject({
+        path: '/app',
+      });
+      expect(startAuditForSite).toHaveBeenCalledWith(otherContext, site.id);
     } finally {
       await db.workspace.deleteMany({
         where: {
@@ -254,41 +320,23 @@ describe('site server actions', () => {
     }
   });
 
-  it('start audit rejects execution without an authenticated session', async () => {
-    const redirectImpl = createRedirectStub();
-    const startAuditForSiteImpl = vi.fn();
-    const action = createStartAuditAction('site-1', {
-      getAuthorizedAppContextImpl: vi.fn().mockResolvedValue(null),
-      redirectImpl,
-      startAuditForSiteImpl,
-    });
-
-    await expect(action()).rejects.toMatchObject({ path: '/' });
-    expect(startAuditForSiteImpl).not.toHaveBeenCalled();
-  });
-
-  it('start audit uses the fresh authenticated session at execution time', async () => {
+  it('re-authenticates start-audit at execution time', async () => {
     const firstContext = await createAuthorizedContext('audit-stale-first');
     const secondContext = await createAuthorizedContext('audit-stale-second');
     let activeContext: AuthorizedAppContext | null = firstContext;
-    const redirectImpl = createRedirectStub();
-    const startAuditForSiteImpl = vi.fn().mockResolvedValue({ id: 'audit-1' });
-    const action = createStartAuditAction('site-1', {
-      getAuthorizedAppContextImpl: vi.fn(async () => activeContext),
-      redirectImpl,
-      startAuditForSiteImpl,
-    });
+
+    vi.mocked(getAuthorizedAppContext).mockImplementation(
+      async () => activeContext,
+    );
+    vi.mocked(startAuditForSite).mockResolvedValue({ id: 'audit-1' } as never);
 
     try {
       activeContext = secondContext;
 
-      await expect(action()).rejects.toMatchObject({
-        path: '/app/sites/site-1',
+      await expect(startAuditAction('site-1')).rejects.toMatchObject({
+        path: '/app/sites/site-1/audits/audit-1',
       });
-      expect(startAuditForSiteImpl).toHaveBeenCalledWith(
-        secondContext,
-        'site-1',
-      );
+      expect(startAuditForSite).toHaveBeenCalledWith(secondContext, 'site-1');
     } finally {
       await db.workspace.deleteMany({
         where: {
