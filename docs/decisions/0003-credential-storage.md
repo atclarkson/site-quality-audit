@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed.
+Accepted.
 
 ## Context
 
@@ -12,21 +12,24 @@ Secrets stored in the same database as application data require application-leve
 
 ## Decision
 
-Store user-supplied integration credentials in PostgreSQL as authenticated encrypted payloads. The encryption master key is supplied to the application at deployment time and is never stored in PostgreSQL. Each credential record includes a key version so secrets can be rotated and re-encrypted.
+Store user-supplied integration credentials in PostgreSQL as authenticated encrypted payloads using Node.js `crypto` with AES-256-GCM.
+
+Each encrypted payload must use a fresh cryptographically random nonce. Store the ciphertext, nonce, authentication tag, algorithm/version metadata, and encryption-key version required for decryption. The encryption master keys are supplied to trusted server and worker processes as deployment secrets and are never stored in PostgreSQL.
 
 Requirements:
 
 - Encryption and decryption occur only in trusted server or worker code.
-- Stored secrets are never returned to the browser after submission.
+- Stored secrets are never returned through normal browser APIs after submission.
 - The UI displays only provider, status, verification date, and a masked identifier where safe.
 - Credential verification uses the secret server-side and stores a sanitized result.
 - OAuth refresh tokens receive the same protection as API keys.
 - Logs, errors, queue payloads, analytics, and tracing must redact secret material.
 - Credential-bearing URLs are treated as secrets in their entirety.
 - Deletion removes the encrypted payload and disables dependent connections.
-- Key rotation supports decrypting with an old key version and re-encrypting with the current version.
+- Rotation supports decrypting with an older key version and re-encrypting with the current key.
+- Authentication failures during decryption fail closed and must not expose plaintext or sensitive diagnostics.
 
-Server-level deployment secrets such as the credential-encryption master key, session secret, and OAuth client secret remain outside the web-managed credential store.
+Server-level deployment secrets such as credential-encryption keys, session secrets, OAuth client secrets, and database credentials remain outside the web-managed credential store.
 
 ## Alternatives considered
 
@@ -37,11 +40,11 @@ Server-level deployment secrets such as the credential-encryption master key, se
 
 ## Consequences
 
-- Production deployment requires secure delivery and backup of the master key.
-- Losing the master key makes encrypted credentials unrecoverable.
+- Production deployment requires secure delivery and backup of every active master key.
+- Losing all usable versions of a master key makes affected credentials unrecoverable.
 - Database compromise alone should not expose plaintext credentials.
 - Application compromise can still expose credentials while in use, so authorization, process security, and logging discipline remain critical.
-- Credential rotation and verification workflows must be implemented and tested.
+- Credential rotation, tamper detection, verification, masking, and deletion workflows must be implemented and tested.
 
 ## Revisit conditions
 

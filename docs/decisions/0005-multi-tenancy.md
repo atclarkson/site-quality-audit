@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed.
+Accepted.
 
 ## Context
 
@@ -12,15 +12,15 @@ The application should support multiple users and multiple sites and may later b
 
 Use a workspace as the tenant boundary from the beginning. Users access workspaces through memberships. Sites, credentials, connections, audits, jobs, findings, metrics, scores, and remediation records belong to a workspace directly or through an enforced parent relationship.
 
-The first user interface may present a single personal workspace and hide workspace management, but persistence and authorization must still use workspace ownership.
+For the initial product, the first successful login for a user creates one private workspace and an Owner membership transactionally. The interface may hide workspace management, but persistence and authorization remain workspace-aware from the beginning.
 
 Authorization must be checked server-side for every tenant-owned operation. Background jobs carry workspace and site identifiers, and workers revalidate ownership rather than trusting job payloads alone.
 
 ## Alternatives considered
 
-- Single-user schema initially: simpler but creates expensive and security-sensitive migration later.
-- Site as tenant boundary: insufficient for users managing several sites and shared credentials.
-- Database per tenant: stronger physical separation but excessive operational complexity for the expected scale.
+- Single-user schema initially
+- Site as tenant boundary
+- Database per tenant
 
 ## Consequences
 
