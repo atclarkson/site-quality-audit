@@ -152,6 +152,33 @@ describe('database tenant constraints', () => {
     }
   });
 
+  it('deletes audit runs when a workspace is deleted', async () => {
+    const user = await createUser();
+    const workspace = await createWorkspace();
+    const site = await createSite(
+      workspace.id,
+      'https://audit-cascade.example.com',
+    );
+    const auditRun = await db.auditRun.create({
+      data: {
+        requestedByUserId: user.id,
+        siteId: site.id,
+        status: 'QUEUED',
+        workspaceId: workspace.id,
+      },
+    });
+
+    await db.workspace.delete({ where: { id: workspace.id } });
+
+    try {
+      expect(
+        await db.auditRun.findUnique({ where: { id: auditRun.id } }),
+      ).toBeNull();
+    } finally {
+      await db.user.delete({ where: { id: user.id } });
+    }
+  });
+
   it('persists membership roles correctly', async () => {
     const user = await createUser();
     const workspace = await createWorkspace();

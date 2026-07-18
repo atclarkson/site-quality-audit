@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { getAuthorizedAppContext } from './authorized-app-context';
+import { startAuditForSite } from './audit-management';
 import {
   createSiteForWorkspace,
   deleteSiteForWorkspace,
@@ -114,5 +115,36 @@ export const createDeleteSiteAction = (
 
     await deleteSiteForWorkspaceImpl(context, siteId);
     return redirectImpl('/app');
+  };
+};
+
+export const createStartAuditAction = (
+  siteId: string,
+  {
+    getAuthorizedAppContextImpl = getAuthorizedAppContext,
+    redirectImpl = redirect,
+    startAuditForSiteImpl = startAuditForSite,
+  }: {
+    getAuthorizedAppContextImpl?: typeof getAuthorizedAppContext;
+    redirectImpl?: RedirectFn;
+    startAuditForSiteImpl?: typeof startAuditForSite;
+  } = {},
+) => {
+  return async () => {
+    'use server';
+
+    const context = await getAuthorizedAppContextImpl();
+
+    if (!context) {
+      return redirectImpl('/');
+    }
+
+    const auditRun = await startAuditForSiteImpl(context, siteId);
+
+    if (!auditRun) {
+      return redirectImpl('/app');
+    }
+
+    return redirectImpl(`/app/sites/${siteId}`);
   };
 };

@@ -20,7 +20,6 @@ export default async function AppPage() {
         <p>{APP_NAME}</p>
         <h1>{context.workspace.name}</h1>
         <p>Signed in as {context.user.name || context.user.email}</p>
-        <p>Role: {context.role}</p>
         <div className="actions">
           <Link href="/app/sites/new">Add a site</Link>
           <Link href="/">Back to home</Link>

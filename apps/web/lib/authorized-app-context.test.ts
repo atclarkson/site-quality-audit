@@ -94,6 +94,7 @@ describe('getAuthorizedAppContext', () => {
       expect(context).toEqual({
         role: 'OWNER',
         user: {
+          id: user.id,
           email: user.email,
           name: user.name,
         },

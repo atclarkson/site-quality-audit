@@ -1,8 +1,16 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getAuthorizedAppContext } from '../../../../lib/authorized-app-context';
-import { createDeleteSiteAction } from '../../../../lib/site-actions';
+import {
+  getAuditSnapshotForSite,
+  toSerializableAuditSnapshot,
+} from '../../../../lib/audit-management';
+import {
+  createDeleteSiteAction,
+  createStartAuditAction,
+} from '../../../../lib/site-actions';
 import { getSiteForWorkspace } from '../../../../lib/site-management';
+import { AuditStatusPanel } from './audit-status-panel';
 
 const dateFormatter = new Intl.DateTimeFormat('en-US', {
   dateStyle: 'medium',
@@ -24,6 +32,12 @@ export default async function SiteDetailPage({
   const site = await getSiteForWorkspace(context, siteId);
 
   if (!site) {
+    redirect('/app');
+  }
+
+  const auditSnapshot = await getAuditSnapshotForSite(context, siteId);
+
+  if (!auditSnapshot) {
     redirect('/app');
   }
 
@@ -55,7 +69,15 @@ export default async function SiteDetailPage({
 
         <div className="actions">
           <Link href={`/app/sites/${site.id}/edit`}>Edit site</Link>
+          <form action={createStartAuditAction(siteId)}>
+            <button type="submit">Start audit</button>
+          </form>
         </div>
+
+        <AuditStatusPanel
+          initialSnapshot={toSerializableAuditSnapshot(auditSnapshot)}
+          siteId={siteId}
+        />
 
         <details className="danger-zone">
           <summary>Delete site</summary>

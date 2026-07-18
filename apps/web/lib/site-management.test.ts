@@ -54,6 +54,7 @@ const createAuthorizedContext = async (
   return {
     role: MembershipRole.OWNER,
     user: {
+      id: user.id,
       email: user.email,
       name: user.name,
     },

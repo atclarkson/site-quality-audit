@@ -12,6 +12,7 @@ vi.mock('./authorized-app-context', () => ({
 import {
   createCreateSiteAction,
   createDeleteSiteAction,
+  createStartAuditAction,
   createUpdateSiteAction,
 } from './site-actions';
 import {
@@ -61,6 +62,7 @@ const createAuthorizedContext = async (
   return {
     role: MembershipRole.OWNER,
     user: {
+      id: user.id,
       email: user.email,
       name: user.name,
     },
@@ -246,6 +248,52 @@ describe('site server actions', () => {
         where: {
           id: {
             in: [ownerContext.workspace.id, otherContext.workspace.id],
+          },
+        },
+      });
+    }
+  });
+
+  it('start audit rejects execution without an authenticated session', async () => {
+    const redirectImpl = createRedirectStub();
+    const startAuditForSiteImpl = vi.fn();
+    const action = createStartAuditAction('site-1', {
+      getAuthorizedAppContextImpl: vi.fn().mockResolvedValue(null),
+      redirectImpl,
+      startAuditForSiteImpl,
+    });
+
+    await expect(action()).rejects.toMatchObject({ path: '/' });
+    expect(startAuditForSiteImpl).not.toHaveBeenCalled();
+  });
+
+  it('start audit uses the fresh authenticated session at execution time', async () => {
+    const firstContext = await createAuthorizedContext('audit-stale-first');
+    const secondContext = await createAuthorizedContext('audit-stale-second');
+    let activeContext: AuthorizedAppContext | null = firstContext;
+    const redirectImpl = createRedirectStub();
+    const startAuditForSiteImpl = vi.fn().mockResolvedValue({ id: 'audit-1' });
+    const action = createStartAuditAction('site-1', {
+      getAuthorizedAppContextImpl: vi.fn(async () => activeContext),
+      redirectImpl,
+      startAuditForSiteImpl,
+    });
+
+    try {
+      activeContext = secondContext;
+
+      await expect(action()).rejects.toMatchObject({
+        path: '/app/sites/site-1',
+      });
+      expect(startAuditForSiteImpl).toHaveBeenCalledWith(
+        secondContext,
+        'site-1',
+      );
+    } finally {
+      await db.workspace.deleteMany({
+        where: {
+          id: {
+            in: [firstContext.workspace.id, secondContext.workspace.id],
           },
         },
       });
