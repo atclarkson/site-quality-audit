@@ -5,7 +5,13 @@ import { WEB_SERVICE_NAME } from '@site-quality-audit/domain';
 import { toBrowserSession } from './session-shape';
 
 type AuthLoggerSink = (record: string) => void;
-const defaultAuthLogSink: AuthLoggerSink = (record) => console.error(record);
+type AuthLoggerSinks = Record<'debug' | 'error' | 'warn', AuthLoggerSink>;
+
+const defaultAuthLogSink: AuthLoggerSinks = {
+  debug: (record) => console.debug(record),
+  error: (record) => console.error(record),
+  warn: (record) => console.warn(record),
+};
 
 const redactedKeys = new Set([
   'access_token',
@@ -70,12 +76,23 @@ const sanitizeForLog = (value: unknown): unknown => {
   return value;
 };
 
+const getSinkForLevel = (
+  sinks: AuthLoggerSink | AuthLoggerSinks,
+  level: 'debug' | 'warn' | 'error',
+) => (typeof sinks === 'function' ? sinks : sinks[level]);
+
 const createAuthLogWriter =
-  (level: 'debug' | 'warn' | 'error', sink: AuthLoggerSink) =>
+  (
+    level: 'debug' | 'warn' | 'error',
+    sinks: AuthLoggerSink | AuthLoggerSinks,
+  ) =>
   (event: string, fields: Record<string, unknown>) => {
     const sanitizedFields = sanitizeForLog(fields) as Record<string, unknown>;
 
-    sink(
+    getSinkForLevel(
+      sinks,
+      level,
+    )(
       JSON.stringify({
         ...sanitizedFields,
         event,
@@ -87,19 +104,19 @@ const createAuthLogWriter =
   };
 
 const logAuthError = (
-  sink: AuthLoggerSink,
+  sinks: AuthLoggerSink | AuthLoggerSinks,
   category: 'oauth' | 'adapter' | 'provisioning' | 'auth',
   error: Error,
   fields: Record<string, unknown> = {},
 ) =>
-  createAuthLogWriter('error', sink)('auth.error', {
+  createAuthLogWriter('error', sinks)('auth.error', {
     category,
     error,
     ...fields,
   });
 
 export const createAuthLogger = (
-  sink: AuthLoggerSink = defaultAuthLogSink,
+  sink: AuthLoggerSink | AuthLoggerSinks = defaultAuthLogSink,
 ): NonNullable<NextAuthConfig['logger']> => {
   const warn = createAuthLogWriter('warn', sink);
   const debug = createAuthLogWriter('debug', sink);
@@ -132,7 +149,7 @@ export const createAuthLogger = (
 const createProvisioningEventHandler =
   (
     prisma: DatabaseClient,
-    sink: AuthLoggerSink,
+    sink: AuthLoggerSink | AuthLoggerSinks,
     trigger: 'createUser' | 'signIn',
   ) =>
   async ({ user }: { user: { id?: string; name?: string | null } }) => {

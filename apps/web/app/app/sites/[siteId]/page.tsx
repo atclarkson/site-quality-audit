@@ -6,8 +6,8 @@ import {
   toSerializableAuditSnapshot,
 } from '../../../../lib/audit-management';
 import {
-  createDeleteSiteAction,
-  createStartAuditAction,
+  deleteSiteAction,
+  startAuditAction,
 } from '../../../../lib/site-actions';
 import { getSiteForWorkspace } from '../../../../lib/site-management';
 import { AuditStatusPanel } from './audit-status-panel';
@@ -41,6 +41,9 @@ export default async function SiteDetailPage({
     redirect('/app');
   }
 
+  const deleteAction = deleteSiteAction.bind(null, siteId);
+  const startAction = startAuditAction.bind(null, siteId);
+
   return (
     <main>
       <section>
@@ -69,7 +72,7 @@ export default async function SiteDetailPage({
 
         <div className="actions">
           <Link href={`/app/sites/${site.id}/edit`}>Edit site</Link>
-          <form action={createStartAuditAction(siteId)}>
+          <form action={startAction}>
             <button type="submit">Start audit</button>
           </form>
         </div>
@@ -85,7 +88,7 @@ export default async function SiteDetailPage({
             This removes the site record from your workspace. It does not affect
             any other workspace.
           </p>
-          <form action={createDeleteSiteAction(siteId)}>
+          <form action={deleteAction}>
             <button type="submit" className="danger-button">
               Confirm delete
             </button>

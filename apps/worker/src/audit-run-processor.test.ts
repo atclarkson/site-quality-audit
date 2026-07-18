@@ -145,7 +145,7 @@ describe('audit worker', () => {
       });
     });
     const workerResources = createAuditWorker(REDIS_URL, async (job) =>
-      processAuditJob(job.data, { delayMs: 25 }),
+      processAuditJob(job.data),
     );
     const queueResourcesEntry = createAuditQueue(REDIS_URL);
     queueResources.push(workerResources, queueResourcesEntry);
