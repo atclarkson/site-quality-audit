@@ -5,11 +5,11 @@ Site Quality Audit is a self-hostable web application for assessing the technica
 ## Setup
 
 1. Copy `.env.example` to `.env`
-2. Start PostgreSQL: `pnpm db:up`
+2. Start PostgreSQL and Redis: `pnpm db:up`
 3. Install dependencies: `pnpm install`
 4. Generate Prisma: `pnpm db:generate`
 5. Apply migrations: `pnpm db:migrate`
-6. Start the web app: `pnpm dev:web`
+6. Start the web app and worker: `pnpm dev`
 7. Run validation: `pnpm typecheck && pnpm lint && pnpm format:check && pnpm test && pnpm build`
 
 Google OAuth environment variables:
@@ -17,6 +17,7 @@ Google OAuth environment variables:
 - `AUTH_SECRET`
 - `AUTH_GOOGLE_ID`
 - `AUTH_GOOGLE_SECRET`
+- `REDIS_URL`
 
 Local Google OAuth callback URL:
 

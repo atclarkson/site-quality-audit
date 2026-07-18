@@ -2,8 +2,8 @@
   "name": "@site-quality-audit/web",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "node ./scripts/next.mjs dev",
+    "build": "node ./scripts/next.mjs build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint . --ext .ts,.tsx"
   },
@@ -12,6 +12,8 @@
     "@site-quality-audit/config": "workspace:*",
     "@site-quality-audit/database": "workspace:*",
     "@site-quality-audit/domain": "workspace:*",
+    "@site-quality-audit/logging": "workspace:*",
+    "@site-quality-audit/queue": "workspace:*",
     "@site-quality-audit/validation": "workspace:*",
     "next": "^16.0.0",
     "next-auth": "^5.0.0-beta.0",

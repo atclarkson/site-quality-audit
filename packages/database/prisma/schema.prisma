@@ -16,6 +16,7 @@ model User {
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
   accounts      Account[]
+  auditRuns     AuditRun[]   @relation("AuditRequestedByUser")
   memberships   Membership[]
   sessions      Session[]
   ownedWorkspace Workspace?   @relation("PersonalWorkspaceOwner")
@@ -30,6 +31,7 @@ model Workspace {
   ownerUserId String?     @unique @db.Uuid
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
+  auditRuns   AuditRun[]
   ownerUser   User?       @relation("PersonalWorkspaceOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
   memberships Membership[]
   sites       Site[]
@@ -62,11 +64,35 @@ model Site {
   sitemapUrl           String?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
+  auditRuns            AuditRun[]
   workspace            Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@unique([workspaceId, normalizedPrimaryUrl])
   @@index([workspaceId])
   @@map("sites")
+}
+
+model AuditRun {
+  id                String         @id @default(uuid()) @db.Uuid
+  workspaceId       String         @db.Uuid
+  siteId            String         @db.Uuid
+  requestedByUserId String?        @db.Uuid
+  status            AuditRunStatus
+  queueJobId        String?        @unique
+  startedAt         DateTime?
+  completedAt       DateTime?
+  failedAt          DateTime?
+  errorCode         String?
+  errorMessage      String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  requestedByUser   User?          @relation("AuditRequestedByUser", fields: [requestedByUserId], references: [id], onDelete: SetNull)
+  site              Site           @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  workspace         Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, siteId, createdAt])
+  @@index([siteId, status])
+  @@map("audit_runs")
 }
 
 model Account {
@@ -113,4 +139,11 @@ enum MembershipRole {
   OWNER
   EDITOR
   VIEWER
+}
+
+enum AuditRunStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
 }

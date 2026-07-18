@@ -13,6 +13,7 @@ describe('parseWebEnv', () => {
         PORT: '4000',
         DATABASE_URL:
           'postgresql://site_quality_audit:site_quality_audit@localhost:5432/site_quality_audit',
+        REDIS_URL: 'redis://localhost:6379',
       }),
     ).toEqual({
       AUTH_GOOGLE_ID: 'google-client-id',
@@ -23,6 +24,7 @@ describe('parseWebEnv', () => {
         'postgresql://site_quality_audit:site_quality_audit@localhost:5432/site_quality_audit',
       NODE_ENV: 'production',
       PORT: 4000,
+      REDIS_URL: 'redis://localhost:6379',
     });
   });
 
@@ -36,6 +38,7 @@ describe('parseWebEnv', () => {
         NODE_ENV: 'preview',
         PORT: '4000',
         DATABASE_URL: 'not-a-database-url',
+        REDIS_URL: 'not-a-redis-url',
       }),
     ).toThrow('web environment is invalid');
   });
@@ -51,6 +54,7 @@ describe('parseWebEnv', () => {
         PORT: '3000',
         DATABASE_URL:
           'postgresql://site_quality_audit:site_quality_audit@localhost:5432/site_quality_audit',
+        REDIS_URL: 'redis://localhost:6379',
       }),
     ).toThrow('AUTH_GOOGLE_SECRET');
   });
@@ -64,12 +68,14 @@ describe('parseWorkerEnv', () => {
         LOG_LEVEL: 'debug',
         DATABASE_URL:
           'postgresql://site_quality_audit:site_quality_audit@localhost:5432/site_quality_audit',
+        REDIS_URL: 'redis://localhost:6379',
       }),
     ).toEqual({
       DATABASE_URL:
         'postgresql://site_quality_audit:site_quality_audit@localhost:5432/site_quality_audit',
       NODE_ENV: 'test',
       LOG_LEVEL: 'debug',
+      REDIS_URL: 'redis://localhost:6379',
     });
   });
 

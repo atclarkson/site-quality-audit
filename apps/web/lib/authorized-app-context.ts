@@ -5,6 +5,7 @@ import { auth } from '../auth';
 export type AuthorizedAppContext = {
   role: MembershipRole;
   user: {
+    id: string;
     email: string;
     name: string | null;
   };
@@ -64,6 +65,7 @@ export const getAuthorizedAppContext =
     return {
       role: membership.role,
       user: {
+        id: user.id,
         email: user.email,
         name: user.name,
       },

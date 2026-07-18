@@ -21,6 +21,21 @@ const databaseUrlSchema = z
     }
   }, 'Expected a valid postgresql:// connection string');
 
+const redisUrlSchema = z
+  .string()
+  .min(1, 'Required')
+  .refine((value) => {
+    try {
+      const url = new URL(value);
+      return (
+        (url.protocol === 'redis:' || url.protocol === 'rediss:') &&
+        url.hostname.length > 0
+      );
+    } catch {
+      return false;
+    }
+  }, 'Expected a valid redis:// connection string');
+
 const requiredSecretSchema = z.string().min(1, 'Required');
 const booleanStringSchema = z
   .enum(['true', 'false'])
@@ -35,12 +50,14 @@ const webEnvSchema = z.object({
   DATABASE_URL: databaseUrlSchema,
   NODE_ENV: nodeEnvSchema,
   PORT: portSchema.optional().default(3000),
+  REDIS_URL: redisUrlSchema,
 });
 
 const workerEnvSchema = z.object({
   DATABASE_URL: databaseUrlSchema,
   NODE_ENV: nodeEnvSchema,
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+  REDIS_URL: redisUrlSchema,
 });
 
 const databaseEnvSchema = z.object({
