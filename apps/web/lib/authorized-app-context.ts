@@ -1,13 +1,15 @@
+import { MembershipRole } from '@site-quality-audit/database';
 import { getPrismaClient } from '@site-quality-audit/database';
 import { auth } from '../auth';
 
 export type AuthorizedAppContext = {
-  role: string;
+  role: MembershipRole;
   user: {
     email: string;
     name: string | null;
   };
   workspace: {
+    id: string;
     name: string;
     slug: string;
   };
@@ -66,6 +68,7 @@ export const getAuthorizedAppContext =
         name: user.name,
       },
       workspace: {
+        id: user.ownedWorkspace.id,
         name: user.ownedWorkspace.name,
         slug: user.ownedWorkspace.slug,
       },

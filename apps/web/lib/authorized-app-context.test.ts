@@ -98,6 +98,7 @@ describe('getAuthorizedAppContext', () => {
           name: user.name,
         },
         workspace: {
+          id: workspace.id,
           name: workspace.name,
           slug: workspace.slug,
         },
