@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@site-quality-audit/config": "workspace:*",
+    "@site-quality-audit/database": "workspace:*",
     "@site-quality-audit/domain": "workspace:*",
     "next": "^16.0.0",
     "react": "^19.0.0",
