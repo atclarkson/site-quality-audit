@@ -2,28 +2,21 @@
 
 Site Quality Audit is a self-hostable web application for assessing the technical, editorial, and strategic quality of content websites.
 
-This repository now contains the first Phase 1 scaffold:
-
-- `apps/web`: Next.js App Router web application
-- `apps/worker`: separate Node.js worker process
-- `packages/config`, `packages/domain`, `packages/logging`, `packages/validation`: shared workspace packages
-
 ## Setup
 
-1. Enable pnpm through Corepack if needed: `corepack enable`
-2. Install dependencies: `pnpm install`
-3. Copy `.env.example` to `.env`
-4. Start both processes: `pnpm dev`
+1. Copy `.env.example` to `.env`
+2. Start PostgreSQL: `pnpm db:up`
+3. Install dependencies: `pnpm install`
+4. Generate Prisma: `pnpm db:generate`
+5. Apply migrations: `pnpm db:migrate`
+6. Run validation: `pnpm typecheck && pnpm lint && pnpm format:check && pnpm test && pnpm build`
 
 Useful commands:
 
-- `pnpm dev:web`
-- `pnpm dev:worker`
-- `pnpm typecheck`
-- `pnpm lint`
-- `pnpm format:check`
-- `pnpm test`
-- `pnpm build`
+- `pnpm db:status`
+- `pnpm db:logs`
+- `pnpm db:down`
+- `pnpm db:reset` (development only)
 
 ## Documentation
 

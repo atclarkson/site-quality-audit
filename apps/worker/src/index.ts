@@ -1,4 +1,5 @@
 import { getWorkerEnv } from '@site-quality-audit/config';
+import { DATABASE_PROVIDER } from '@site-quality-audit/database/provider';
 import { APP_NAME, WORKER_SERVICE_NAME } from '@site-quality-audit/domain';
 import { createLogger } from '@site-quality-audit/logging';
 
@@ -7,6 +8,7 @@ const logger = createLogger({ service: WORKER_SERVICE_NAME });
 
 logger.info('worker.start', {
   app: APP_NAME,
+  database: DATABASE_PROVIDER,
   nodeEnv: env.NODE_ENV,
   logLevel: env.LOG_LEVEL,
 });

@@ -1,0 +1,29 @@
+{
+  "name": "@site-quality-audit/database",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./provider": "./src/provider.ts"
+  },
+  "scripts": {
+    "generate": "node ./scripts/prisma.mjs generate --schema prisma/schema.prisma",
+    "migrate": "node ./scripts/prisma.mjs migrate dev --schema prisma/schema.prisma",
+    "status": "node ./scripts/prisma.mjs migrate status --schema prisma/schema.prisma",
+    "reset": "node ./scripts/prisma.mjs migrate reset --schema prisma/schema.prisma --force",
+    "build": "tsup src/index.ts --format esm --target node20 --dts --out-dir dist --clean --external @prisma/client",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src --ext .ts",
+    "test": "vitest run --config ../../vitest.config.ts packages/database/src/index.test.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.0.0",
+    "@site-quality-audit/config": "workspace:*"
+  },
+  "devDependencies": {
+    "prisma": "^6.0.0"
+  }
+}

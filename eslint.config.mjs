@@ -5,10 +5,10 @@ export default [
   {
     ignores: [
       '.corepack/**',
-      '.next/**',
-      'coverage/**',
-      'dist/**',
-      'node_modules/**',
+      '**/.next/**',
+      '**/coverage/**',
+      '**/dist/**',
+      '**/node_modules/**',
     ],
   },
   {
