@@ -9,7 +9,20 @@ Site Quality Audit is a self-hostable web application for assessing the technica
 3. Install dependencies: `pnpm install`
 4. Generate Prisma: `pnpm db:generate`
 5. Apply migrations: `pnpm db:migrate`
-6. Run validation: `pnpm typecheck && pnpm lint && pnpm format:check && pnpm test && pnpm build`
+6. Start the web app: `pnpm dev:web`
+7. Run validation: `pnpm typecheck && pnpm lint && pnpm format:check && pnpm test && pnpm build`
+
+Google OAuth environment variables:
+
+- `AUTH_SECRET`
+- `AUTH_GOOGLE_ID`
+- `AUTH_GOOGLE_SECRET`
+
+Local Google OAuth callback URL:
+
+- `http://localhost:3000/api/auth/callback/google`
+
+Real Google OAuth credentials belong only in `.env`.
 
 Useful commands:
 

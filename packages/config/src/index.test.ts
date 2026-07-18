@@ -5,12 +5,20 @@ describe('parseWebEnv', () => {
   it('parses a valid web environment', () => {
     expect(
       parseWebEnv({
+        AUTH_GOOGLE_ID: 'google-client-id',
+        AUTH_GOOGLE_SECRET: 'google-client-secret',
+        AUTH_SECRET: 'test-auth-secret',
+        AUTH_TRUST_HOST: 'true',
         NODE_ENV: 'production',
         PORT: '4000',
         DATABASE_URL:
           'postgresql://site_quality_audit:site_quality_audit@localhost:5432/site_quality_audit',
       }),
     ).toEqual({
+      AUTH_GOOGLE_ID: 'google-client-id',
+      AUTH_GOOGLE_SECRET: 'google-client-secret',
+      AUTH_SECRET: 'test-auth-secret',
+      AUTH_TRUST_HOST: true,
       DATABASE_URL:
         'postgresql://site_quality_audit:site_quality_audit@localhost:5432/site_quality_audit',
       NODE_ENV: 'production',
@@ -21,11 +29,30 @@ describe('parseWebEnv', () => {
   it('rejects an invalid web environment', () => {
     expect(() =>
       parseWebEnv({
+        AUTH_GOOGLE_ID: '',
+        AUTH_GOOGLE_SECRET: '',
+        AUTH_SECRET: '',
+        AUTH_TRUST_HOST: 'maybe',
         NODE_ENV: 'preview',
         PORT: '4000',
         DATABASE_URL: 'not-a-database-url',
       }),
     ).toThrow('web environment is invalid');
+  });
+
+  it('rejects missing auth values without echoing secret values', () => {
+    expect(() =>
+      parseWebEnv({
+        AUTH_GOOGLE_ID: 'google-client-id',
+        AUTH_GOOGLE_SECRET: '',
+        AUTH_SECRET: 'super-secret-value',
+        AUTH_TRUST_HOST: 'true',
+        NODE_ENV: 'development',
+        PORT: '3000',
+        DATABASE_URL:
+          'postgresql://site_quality_audit:site_quality_audit@localhost:5432/site_quality_audit',
+      }),
+    ).toThrow('AUTH_GOOGLE_SECRET');
   });
 });
 

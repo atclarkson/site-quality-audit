@@ -5,6 +5,7 @@ const globalForPrisma = globalThis as {
 };
 
 export { DATABASE_PROVIDER } from './provider';
+export { ensurePrivateWorkspaceForUser } from './private-workspace';
 
 export type DatabaseClient = PrismaClient;
 
