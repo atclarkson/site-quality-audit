@@ -110,7 +110,7 @@ export function AuditStatusPanel({
               <h3>{auditRun.status}</h3>
               <p>
                 <Link href={`/app/sites/${siteId}/audits/${auditRun.id}`}>
-                  View audit detail
+                  View prioritized report
                 </Link>
               </p>
               <p>
@@ -129,6 +129,18 @@ export function AuditStatusPanel({
                 <p>
                   Completed:{' '}
                   {dateFormatter.format(new Date(auditRun.completedAt))}
+                </p>
+              ) : null}
+              {auditRun.status === 'COMPLETED' ? (
+                <p>
+                  Findings:{' '}
+                  {auditRun.criticalFindingCount +
+                    auditRun.highFindingCount +
+                    auditRun.mediumFindingCount +
+                    auditRun.lowFindingCount +
+                    auditRun.infoFindingCount}{' '}
+                  total, {auditRun.criticalFindingCount} critical,{' '}
+                  {auditRun.highFindingCount} high
                 </p>
               ) : null}
               {auditRun.failedAt ? (

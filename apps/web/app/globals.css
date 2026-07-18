@@ -1,13 +1,13 @@
 html {
   font-family:
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    sans-serif;
-  background: #f5f5f0;
-  color: #1b1b18;
+    'Instrument Sans', 'Avenir Next', ui-sans-serif, system-ui, sans-serif;
+  background: radial-gradient(
+    circle at top,
+    #efe6d1 0%,
+    #f7f2e7 35%,
+    #f3efe7 100%
+  );
+  color: #1f241f;
 }
 
 body {
@@ -16,30 +16,46 @@ body {
 
 main {
   min-height: 100vh;
-  display: grid;
-  place-items: center;
   padding: 2rem;
 }
 
 section {
-  width: min(40rem, 100%);
-  background: #fffef7;
-  border: 1px solid #d7d2c8;
-  border-radius: 1rem;
+  width: min(72rem, 100%);
+  margin: 0 auto;
+  background: rgba(255, 252, 245, 0.96);
+  border: 1px solid #d8cfbf;
+  border-radius: 1.25rem;
   padding: 2rem;
-  box-shadow: 0 20px 60px rgba(24, 24, 22, 0.08);
+  box-shadow: 0 18px 60px rgba(28, 28, 20, 0.08);
 }
 
-h1 {
+.page-shell {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.report-section {
+  width: auto;
+  margin: 0;
+  background: #fffdf7;
+}
+
+h1,
+h2,
+h3 {
   margin-top: 0;
+  line-height: 1.1;
 }
 
-p {
+p,
+li,
+dd,
+dt {
   line-height: 1.6;
 }
 
 a {
-  color: #264653;
+  color: #204d45;
 }
 
 form,
@@ -55,15 +71,17 @@ label {
 }
 
 input,
-button {
+button,
+select {
   font: inherit;
 }
 
-input {
+input,
+select {
   width: 100%;
   box-sizing: border-box;
   padding: 0.75rem 0.9rem;
-  border-radius: 0.75rem;
+  border-radius: 0.85rem;
   border: 1px solid #c8c1b5;
   background: #fff;
 }
@@ -75,8 +93,8 @@ button,
   align-items: center;
   padding: 0.75rem 1rem;
   border-radius: 999px;
-  border: 1px solid #264653;
-  background: #264653;
+  border: 1px solid #204d45;
+  background: #204d45;
   color: #fffef7;
   text-decoration: none;
 }
@@ -87,7 +105,7 @@ button[disabled] {
 
 .secondary-action {
   background: transparent;
-  color: #264653;
+  color: #204d45;
 }
 
 .danger-button {
@@ -107,7 +125,9 @@ button[disabled] {
   color: #9d3c2f;
 }
 
-.site-list {
+.site-list,
+.stack-list,
+.issue-page-list {
   list-style: none;
   padding: 0;
   margin: 0;
@@ -117,14 +137,19 @@ button[disabled] {
 
 .site-list li,
 .danger-zone,
-.site-meta {
+.site-meta,
+.summary-card,
+.priority-card,
+.issue-card {
   border: 1px solid #d7d2c8;
-  border-radius: 0.9rem;
+  border-radius: 1rem;
   padding: 1rem;
   background: #fff;
 }
 
-.site-list h3 {
+.site-list h3,
+.priority-card h3,
+.issue-card h3 {
   margin: 0 0 0.5rem;
 }
 
@@ -144,10 +169,140 @@ button[disabled] {
   gap: 0.25rem;
 }
 
-.site-meta dt {
+.site-meta dt,
+.summary-label {
   font-weight: 700;
 }
 
 .danger-zone {
   margin-top: 1.5rem;
+}
+
+.summary-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+}
+
+.summary-value {
+  display: block;
+  margin-top: 0.4rem;
+  font-size: 1.75rem;
+}
+
+.priority-header,
+.section-heading,
+.filter-bar {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.priority-score,
+.severity-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.priority-score {
+  background: #edf0d0;
+  color: #4f5d21;
+}
+
+.severity-critical {
+  background: #8a221a;
+  color: #fff8f3;
+}
+
+.severity-high {
+  background: #c45c18;
+  color: #fff9f1;
+}
+
+.severity-medium {
+  background: #d39d16;
+  color: #3d2d00;
+}
+
+.severity-low {
+  background: #d7e7c9;
+  color: #34502d;
+}
+
+.severity-info {
+  background: #d5e7ee;
+  color: #1e4755;
+}
+
+.muted {
+  color: #5d645f;
+}
+
+.filter-bar {
+  margin: 1rem 0 1.5rem;
+}
+
+.filter-bar > * {
+  flex: 1 1 11rem;
+}
+
+.inline-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.inline-checkbox input {
+  width: auto;
+}
+
+.issue-card summary {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.issue-card-open {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.75rem;
+  border-bottom: 1px solid #e4ddd2;
+  vertical-align: top;
+}
+
+.compact-meta {
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+}
+
+@media (max-width: 720px) {
+  main {
+    padding: 1rem;
+  }
+
+  section {
+    padding: 1.25rem;
+  }
 }

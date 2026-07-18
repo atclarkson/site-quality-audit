@@ -13,6 +13,7 @@
     "@site-quality-audit/config": "workspace:*",
     "@site-quality-audit/database": "workspace:*",
     "@site-quality-audit/domain": "workspace:*",
+    "@site-quality-audit/findings": "workspace:*",
     "@site-quality-audit/logging": "workspace:*",
     "@site-quality-audit/queue": "workspace:*"
   }

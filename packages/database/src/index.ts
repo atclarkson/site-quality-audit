@@ -34,6 +34,7 @@ export {
   AuditRunStatus,
   CrawledPageDiscoverySource,
   CrawledPageFetchStatus,
+  FindingSeverity,
   MembershipRole,
   Prisma,
 } from '@prisma/client';

@@ -33,6 +33,7 @@ model Workspace {
   updatedAt   DateTime    @updatedAt
   auditRuns   AuditRun[]
   crawledPages CrawledPage[]
+  findings    Finding[]
   ownerUser   User?       @relation("PersonalWorkspaceOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
   memberships Membership[]
   sites       Site[]
@@ -67,6 +68,7 @@ model Site {
   updatedAt            DateTime  @updatedAt
   auditRuns            AuditRun[]
   crawledPages         CrawledPage[]
+  findings             Finding[]
   workspace            Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@unique([workspaceId, normalizedPrimaryUrl])
@@ -94,15 +96,28 @@ model AuditRun {
   robotsTxtStatusCode Int?
   robotsTxtFetchedAt DateTime?
   robotsTxtExists   Boolean?
+  robotsWarningCode String?
+  robotsWarningCount Int          @default(0)
+  robotsWarningMessage String?
   sitemapCount      Int            @default(0)
   sitemapUrlCount   Int            @default(0)
   sitemapWarningCount Int          @default(0)
+  sitemapWarningCode String?
   sitemapWarningMessage String?
+  crawlLimitReached Boolean        @default(false)
+  criticalFindingCount Int         @default(0)
+  highFindingCount Int             @default(0)
+  mediumFindingCount Int           @default(0)
+  lowFindingCount Int              @default(0)
+  infoFindingCount Int             @default(0)
+  pagesWithFindingsCount Int       @default(0)
+  findingsGeneratedAt DateTime?
   errorCode         String?
   errorMessage      String?
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
   crawledPages      CrawledPage[]
+  findings          Finding[]
   requestedByUser   User?          @relation("AuditRequestedByUser", fields: [requestedByUserId], references: [id], onDelete: SetNull)
   site              Site           @relation(fields: [siteId], references: [id], onDelete: Cascade)
   workspace         Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -157,6 +172,7 @@ model CrawledPage {
   createdAt             DateTime                 @default(now())
   updatedAt             DateTime                 @updatedAt
   auditRun              AuditRun                 @relation(fields: [auditRunId], references: [id], onDelete: Cascade)
+  findings              Finding[]
   site                  Site                     @relation(fields: [siteId], references: [id], onDelete: Cascade)
   workspace             Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
@@ -164,6 +180,34 @@ model CrawledPage {
   @@index([workspaceId, auditRunId, normalizedUrl])
   @@index([workspaceId, siteId, auditRunId, fetchStatus])
   @@map("crawled_pages")
+}
+
+model Finding {
+  id                String          @id @default(uuid()) @db.Uuid
+  workspaceId       String          @db.Uuid
+  siteId            String          @db.Uuid
+  auditRunId        String          @db.Uuid
+  crawledPageId     String?         @db.Uuid
+  code              String
+  category          String
+  severity          FindingSeverity
+  title             String
+  explanation       String
+  recommendedAction String
+  evidenceJson      Json?
+  priorityScore     Int
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  auditRun          AuditRun        @relation(fields: [auditRunId], references: [id], onDelete: Cascade)
+  crawledPage       CrawledPage?    @relation(fields: [crawledPageId], references: [id], onDelete: Cascade)
+  site              Site            @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  workspace         Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([auditRunId, crawledPageId, code])
+  @@index([workspaceId, auditRunId, severity, priorityScore])
+  @@index([workspaceId, auditRunId, crawledPageId])
+  @@index([workspaceId, siteId, code])
+  @@map("findings")
 }
 
 model Account {
@@ -230,4 +274,12 @@ enum CrawledPageDiscoverySource {
   PRIMARY
   SITEMAP
   LINK
+}
+
+enum FindingSeverity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+  INFO
 }

@@ -45,6 +45,13 @@ const auditRunSummarySelect = {
   sitemapUrlCount: true,
   sitemapWarningCount: true,
   sitemapWarningMessage: true,
+  criticalFindingCount: true,
+  highFindingCount: true,
+  mediumFindingCount: true,
+  lowFindingCount: true,
+  infoFindingCount: true,
+  pagesWithFindingsCount: true,
+  findingsGeneratedAt: true,
   errorCode: true,
   errorMessage: true,
 } satisfies Prisma.AuditRunSelect;
