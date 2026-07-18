@@ -47,7 +47,7 @@ Create a secure Docker-first application skeleton supporting authentication, ten
 
 ### Dependencies
 
-Resolve framework, ORM, authentication, queue, encryption, and local secret-management ADRs.
+The accepted Phase 1 foundation ADRs define the framework, ORM, authentication, queue, encryption, tenancy, and local secret-management choices required for implementation.
 
 ### Exit criteria
 
@@ -256,7 +256,6 @@ Multi-region scale, billing, and enterprise administration unless actual usage r
 
 ## Open roadmap questions
 
-- Whether workspaces appear in the first UI or remain an internal tenant boundary
 - When BigQuery export becomes necessary
 - Embedding provider and storage
 - Production hosting and reverse proxy
