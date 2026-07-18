@@ -2,18 +2,19 @@
 
 ## Status
 
-Provisional Phase 0 architecture. Implementation choices marked open must be resolved through an ADR before coding depends on them.
+Accepted foundation architecture for Phase 1. Later-phase choices marked open must be resolved before implementation depends on them.
 
 ## System context
 
-Site Quality Audit is a multi-site web application with long-running crawl, synchronization, and AI workloads. Interactive requests must remain separate from durable background execution.
+Site Quality Audit is a multi-site web application with long-running crawl, synchronization, and AI workloads. Interactive requests remain separate from durable background execution.
 
 ```mermaid
 flowchart LR
-  U[Publisher] --> W[Web application]
+  U[Publisher] --> W[Next.js web application]
   W --> DB[(PostgreSQL)]
-  W --> Q[(Durable job queue)]
-  Q --> WK[Worker]
+  W --> Q[(BullMQ)]
+  Q --> R[(Redis)]
+  Q --> WK[Node.js worker]
   WK --> WEB[Public websites]
   WK --> GSC[Google Search Console]
   WK --> GA[GA4 - later]
@@ -22,21 +23,32 @@ flowchart LR
   WK --> DB
 ```
 
-## Proposed components
+## Repository and process boundaries
+
+Use a pnpm workspace TypeScript monorepo with:
+
+- a Next.js App Router web application;
+- a separately runnable Node.js TypeScript worker;
+- shared packages for Prisma database access, Zod validation, queue contracts, structured logging, and domain types.
+
+Web and worker may share trusted packages and database models, but they have independent startup, health, scaling, and failure behavior. Web-only code must not be imported into workers. Long-running work must not depend on a web request remaining active.
+
+## Components
 
 ### Web application
 
 Responsibilities:
 
-- Authentication and authorization
+- Auth.js Google authentication and database-backed sessions
+- Server-side workspace authorization
 - Site and integration configuration
 - Audit creation and progress views
 - Findings, scores, clusters, and remediation UI
 - Credential submission without later secret disclosure
 - Scheduling durable jobs
-- Server-sent events or polling for live progress
+- Polling persisted progress state
 
-Likely direction: TypeScript and Next.js. Final framework choice is provisional until ADR acceptance.
+The first interface creates and uses one private workspace per user while hiding workspace-management UI.
 
 ### Worker
 
@@ -51,32 +63,45 @@ A separately runnable process responsible for:
 - Clustering and score calculation
 - Retry, checkpoint, and cancellation behavior
 
-Web and worker may share packages and database models but must not share process lifecycle assumptions.
+Workers revalidate workspace and site ownership from PostgreSQL rather than trusting queue payloads alone.
 
-### PostgreSQL
+### PostgreSQL and Prisma
 
-System of record for tenant data, configuration, crawl snapshots, findings, metrics, prompts, model usage, recommendations, and remediation history.
+PostgreSQL is the system of record for tenant data, configuration, crawl snapshots, findings, metrics, prompts, model usage, recommendations, remediation history, durable progress, identities, and sessions.
 
-PostgreSQL is provisionally accepted over SQLite because the planned product requires concurrent workers, multi-user access, historical snapshots, and server deployment.
+Prisma is the accepted ORM. Persisted schema changes use checked-in Prisma migrations. Shared or deployed migration history is not rewritten.
 
 ### Durable job queue
 
+BullMQ backed by Redis provides at-least-once job delivery.
+
 Required capabilities:
 
-- At-least-once delivery
-- Retry policies and backoff
+- Retry policies and bounded backoff
 - Scheduled and dependent jobs
 - Per-site and global concurrency controls
 - Cancellation
 - Progress reporting
 - Idempotency support
-- Dead-letter or failed-job inspection
+- Failed-job inspection
 
-Redis plus BullMQ is the leading option, but the exact implementation remains open.
+Queue payloads contain identifiers and versioned inputs, not credentials or large page content. PostgreSQL remains the source of truth for user-visible job progress and terminal state. Redis persistence is enabled for Docker deployments.
+
+### Authentication and tenancy
+
+Auth.js handles Google OAuth with database-backed sessions. Authentication establishes identity but does not replace workspace authorization.
+
+Workspace is the tenant boundary. The first successful login transactionally creates a private workspace and Owner membership. Every tenant-owned operation verifies membership server-side. Background workers perform the same ownership validation.
+
+### Credentials and deployment secrets
+
+User-managed integration credentials are stored in PostgreSQL as AES-256-GCM authenticated encrypted payloads with fresh random nonces, authentication tags, and encryption-key versions.
+
+Deployment secrets such as database credentials, Redis credentials, OAuth secrets, session secrets, and encryption master keys remain outside the application-managed credential vault. Local Docker development uses uncommitted `.env` files based on committed safe examples. Production uses environment variables or mounted secret files. Zod validates required configuration at startup.
 
 ### Object storage
 
-Not required for the first foundation phase. It may later hold raw HTML, screenshots, large exports, or generated reports. The database should store references rather than large binaries when this is introduced.
+Object storage is not required for Phase 1. It may later hold raw HTML, screenshots, large exports, or generated reports. The database should store references rather than large binaries when it is introduced.
 
 ## Deployment model
 
@@ -87,9 +112,9 @@ Initial Compose services:
 - `web`
 - `worker`
 - `postgres`
-- `redis` or selected queue dependency
+- `redis`
 
-Production may place web and worker on the same host while keeping them as separate services. The reverse proxy and hosting provider remain open.
+Production may place web and worker on the same host while keeping them as separate services. Migration execution is an explicit deployment step and must not race across ordinary service startup. The reverse proxy and hosting provider remain open.
 
 ## Crawl lifecycle
 
@@ -156,7 +181,7 @@ Suggested hierarchy:
 
 Each job requires:
 
-- Tenant and site identifiers
+- Workspace and site identifiers
 - Stable idempotency key
 - Input version
 - Attempt count
@@ -165,10 +190,11 @@ Each job requires:
 
 ## Idempotency
 
-- A page snapshot is uniquely identified by crawl, normalized URL, fetch variant, and content hash policy.
+- A page snapshot is uniquely identified by crawl, normalized URL, fetch variant, and content-hash policy.
 - Search metrics use source, property, date, dimensions, and page/query keys.
 - AI runs use page snapshot, prompt version, provider, model, and analysis mode.
 - Retried jobs may update job state but must not duplicate immutable results or billable requests when a completed result already exists.
+- Initial workspace provisioning must tolerate repeated or concurrent authentication callbacks without creating duplicates.
 
 ## Integration boundaries
 
@@ -185,7 +211,7 @@ Provider-specific tokens and response objects must not leak into domain models.
 
 ## Live progress
 
-The database remains the source of truth. The UI may receive updates through polling or server-sent events. Queue-local progress alone is insufficient because it can disappear during restarts.
+The database remains the source of truth. Phase 1 uses polling for progress updates. Server-sent events may be added later without changing persisted job state or progress contracts.
 
 Track at least:
 
@@ -238,11 +264,11 @@ Concurrency must be constrained per host, per site, per provider, and globally.
 
 ### Single-process application
 
-Rejected provisionally because long crawls and AI runs should survive web restarts and cannot safely occupy request lifecycles.
+Rejected because long crawls and AI runs should survive web restarts and cannot safely occupy request lifecycles.
 
 ### SQLite
 
-Rejected provisionally for the primary deployment because concurrent workers and multi-user history are first-class requirements. It may remain useful for tests.
+Rejected for the primary deployment because concurrent workers and multi-user history are first-class requirements. It may remain useful for isolated tests.
 
 ### Browser rendering for every page
 
@@ -254,11 +280,6 @@ Not selected for the initial product because durable crawling and browser worklo
 
 ## Open decisions
 
-- Final web framework
-- ORM
-- Queue implementation
-- Authentication library
-- Live-progress transport
 - Embedding provider and vector storage
-- Raw-content/object-storage policy
+- Raw-content and object-storage policy
 - Production reverse proxy and hosting
