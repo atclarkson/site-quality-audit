@@ -179,6 +179,38 @@ describe('database tenant constraints', () => {
     }
   });
 
+  it('preserves audit history when the requesting user is deleted', async () => {
+    const user = await createUser();
+    const workspace = await createWorkspace();
+    const site = await createSite(
+      workspace.id,
+      'https://audit-history.example.com',
+    );
+    const auditRun = await db.auditRun.create({
+      data: {
+        requestedByUserId: user.id,
+        siteId: site.id,
+        status: 'COMPLETED',
+        workspaceId: workspace.id,
+      },
+    });
+
+    await db.user.delete({ where: { id: user.id } });
+
+    try {
+      await expect(
+        db.auditRun.findUniqueOrThrow({ where: { id: auditRun.id } }),
+      ).resolves.toMatchObject({
+        id: auditRun.id,
+        requestedByUserId: null,
+        siteId: site.id,
+        workspaceId: workspace.id,
+      });
+    } finally {
+      await db.workspace.delete({ where: { id: workspace.id } });
+    }
+  });
+
   it('persists membership roles correctly', async () => {
     const user = await createUser();
     const workspace = await createWorkspace();

@@ -4,6 +4,12 @@ import { z } from 'zod';
 
 export const AUDIT_QUEUE_NAME = 'audit-runs';
 export const RUN_SITE_AUDIT_JOB_NAME = 'run-site-audit';
+export const AUDIT_QUEUE_ERROR_CODE = 'AUDIT_QUEUE_ERROR';
+export const AUDIT_QUEUE_ERROR_MESSAGE =
+  'The audit could not be queued. Please try again.';
+export const AUDIT_PROCESSING_ERROR_CODE = 'AUDIT_PROCESSING_ERROR';
+export const AUDIT_PROCESSING_ERROR_MESSAGE =
+  'The audit could not be completed.';
 
 export const auditJobPayloadSchema = z.object({
   auditRunId: z.uuid(),

@@ -139,6 +139,50 @@ describe('audit management', () => {
     }
   });
 
+  it('allows only one active audit when two starts race concurrently', async () => {
+    const context = await createAuthorizedContext('audit-race');
+    const enqueueAuditJobImpl = vi.fn().mockResolvedValue('job-race');
+
+    try {
+      const site = await createSiteForWorkspace(
+        context,
+        {
+          name: 'Race Audit Site',
+          primaryUrl: 'https://audit-race.example.com',
+          sitemapUrl: '',
+        },
+        db,
+      );
+
+      const [firstAuditRun, secondAuditRun] = await Promise.all([
+        startAuditForSite(context, site.id, {
+          enqueueAuditJobImpl,
+          prisma: db,
+        }),
+        startAuditForSite(context, site.id, {
+          enqueueAuditJobImpl,
+          prisma: db,
+        }),
+      ]);
+
+      expect(firstAuditRun?.id).toBe(secondAuditRun?.id);
+      expect(
+        await db.auditRun.count({
+          where: {
+            siteId: site.id,
+            status: {
+              in: [AuditRunStatus.QUEUED, AuditRunStatus.RUNNING],
+            },
+            workspaceId: context.workspace.id,
+          },
+        }),
+      ).toBe(1);
+      expect(enqueueAuditJobImpl).toHaveBeenCalledTimes(1);
+    } finally {
+      await db.workspace.delete({ where: { id: context.workspace.id } });
+    }
+  });
+
   it('does not let one workspace start or inspect another workspace audit', async () => {
     const ownerContext = await createAuthorizedContext('audit-owner');
     const otherContext = await createAuthorizedContext('audit-other');
@@ -177,8 +221,11 @@ describe('audit management', () => {
     }
   });
 
-  it('marks the audit run failed if enqueueing raises an unexpected error', async () => {
+  it('marks the audit run failed with a fixed safe message and log fields', async () => {
     const context = await createAuthorizedContext('audit-failure');
+    const loggerImpl = {
+      error: vi.fn(),
+    };
 
     try {
       const site = await createSiteForWorkspace(
@@ -195,10 +242,15 @@ describe('audit management', () => {
         startAuditForSite(context, site.id, {
           enqueueAuditJobImpl: vi
             .fn()
-            .mockRejectedValue(new Error('Redis unavailable')),
+            .mockRejectedValue(
+              new Error(
+                'connect ECONNREFUSED redis://user:secret-pass@redis.example.com:6379',
+              ),
+            ),
+          loggerImpl,
           prisma: db,
         }),
-      ).rejects.toThrow('Redis unavailable');
+      ).rejects.toThrow();
 
       const auditRun = await db.auditRun.findFirstOrThrow({
         where: {
@@ -209,7 +261,18 @@ describe('audit management', () => {
 
       expect(auditRun.status).toBe(AuditRunStatus.FAILED);
       expect(auditRun.errorCode).toBe('AUDIT_QUEUE_ERROR');
-      expect(auditRun.errorMessage).toBe('Redis unavailable');
+      expect(auditRun.errorMessage).toBe(
+        'The audit could not be queued. Please try again.',
+      );
+
+      const [event, fields] = loggerImpl.error.mock.calls[0];
+      expect(event).toBe('audit.enqueue_failed');
+      expect(fields).toMatchObject({
+        errorCode: 'AUDIT_QUEUE_ERROR',
+        errorName: 'Error',
+      });
+      expect(JSON.stringify(fields)).not.toContain('secret-pass');
+      expect(JSON.stringify(fields)).not.toContain('redis.example.com');
     } finally {
       await db.workspace.delete({ where: { id: context.workspace.id } });
     }

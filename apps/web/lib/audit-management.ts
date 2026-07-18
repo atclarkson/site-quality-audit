@@ -7,6 +7,8 @@ import {
 } from '@site-quality-audit/database';
 import { WEB_SERVICE_NAME } from '@site-quality-audit/domain';
 import {
+  AUDIT_QUEUE_ERROR_CODE,
+  AUDIT_QUEUE_ERROR_MESSAGE,
   RUN_SITE_AUDIT_JOB_NAME,
   auditJobPayloadSchema,
   createAuditQueue,
@@ -59,20 +61,17 @@ export type SerializableSiteAuditSnapshot = {
 };
 
 type EnqueueAuditJob = (payload: AuditJobPayload) => Promise<string>;
+type AuditLogger = Pick<typeof logger, 'error'>;
 
-const sanitizeAuditFailure = (error: unknown) => {
-  if (error instanceof Error) {
-    return {
-      errorCode: 'AUDIT_QUEUE_ERROR',
-      errorMessage: error.message.slice(0, 200),
-    };
-  }
+const isUniquenessError = (error: unknown) =>
+  error instanceof Prisma.PrismaClientKnownRequestError &&
+  error.code === 'P2002';
 
-  return {
-    errorCode: 'AUDIT_QUEUE_ERROR',
-    errorMessage: 'Audit queueing failed',
-  };
-};
+const buildQueueFailure = (error: unknown) => ({
+  errorCode: AUDIT_QUEUE_ERROR_CODE,
+  errorMessage: AUDIT_QUEUE_ERROR_MESSAGE,
+  errorName: error instanceof Error ? error.name : 'UnknownError',
+});
 
 const enqueueAuditJob: EnqueueAuditJob = async (payload) => {
   const { connection, queue } = createAuditQueue(getWebEnv().REDIS_URL);
@@ -178,20 +177,16 @@ export const startAuditForSite = async (
   siteId: string,
   {
     enqueueAuditJobImpl = enqueueAuditJob,
+    loggerImpl = logger,
     prisma = getPrismaClient(),
   }: {
     enqueueAuditJobImpl?: EnqueueAuditJob;
+    loggerImpl?: AuditLogger;
     prisma?: DatabaseClient;
   } = {},
 ) => {
-  const creationResult = await prisma.$transaction(async (tx) => {
-    const site = await getSiteWorkspaceRecord(context, siteId, tx);
-
-    if (!site) {
-      return null;
-    }
-
-    const existingAuditRun = await tx.auditRun.findFirst({
+  const findActiveAuditRun = () =>
+    prisma.auditRun.findFirst({
       where: {
         siteId,
         workspaceId: context.workspace.id,
@@ -205,26 +200,66 @@ export const startAuditForSite = async (
       select: auditRunSummarySelect,
     });
 
-    if (existingAuditRun) {
+  const creationResult = await (async () => {
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const site = await getSiteWorkspaceRecord(context, siteId, tx);
+
+        if (!site) {
+          return null;
+        }
+
+        const existingAuditRun = await tx.auditRun.findFirst({
+          where: {
+            siteId,
+            workspaceId: context.workspace.id,
+            status: {
+              in: activeAuditStatuses,
+            },
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+          select: auditRunSummarySelect,
+        });
+
+        if (existingAuditRun) {
+          return {
+            auditRun: existingAuditRun,
+            created: false,
+          };
+        }
+
+        return {
+          auditRun: await tx.auditRun.create({
+            data: {
+              requestedByUserId: context.user.id,
+              siteId,
+              status: AuditRunStatus.QUEUED,
+              workspaceId: context.workspace.id,
+            },
+            select: auditRunSummarySelect,
+          }),
+          created: true,
+        };
+      });
+    } catch (error) {
+      if (!isUniquenessError(error)) {
+        throw error;
+      }
+
+      const activeAuditRun = await findActiveAuditRun();
+
+      if (!activeAuditRun) {
+        throw error;
+      }
+
       return {
-        auditRun: existingAuditRun,
+        auditRun: activeAuditRun,
         created: false,
       };
     }
-
-    return {
-      auditRun: await tx.auditRun.create({
-        data: {
-          requestedByUserId: context.user.id,
-          siteId,
-          status: AuditRunStatus.QUEUED,
-          workspaceId: context.workspace.id,
-        },
-        select: auditRunSummarySelect,
-      }),
-      created: true,
-    };
-  });
+  })();
 
   if (!creationResult) {
     return null;
@@ -253,13 +288,14 @@ export const startAuditForSite = async (
       select: auditRunSummarySelect,
     });
   } catch (error) {
-    const failure = sanitizeAuditFailure(error);
+    const failure = buildQueueFailure(error);
 
-    logger.error('audit.enqueue_failed', {
+    loggerImpl.error('audit.enqueue_failed', {
       auditRunId: creationResult.auditRun.id,
+      errorCode: failure.errorCode,
+      errorName: failure.errorName,
       siteId,
       workspaceId: context.workspace.id,
-      ...failure,
     });
 
     await prisma.auditRun.update({
@@ -269,7 +305,8 @@ export const startAuditForSite = async (
       data: {
         status: AuditRunStatus.FAILED,
         failedAt: new Date(),
-        ...failure,
+        errorCode: failure.errorCode,
+        errorMessage: failure.errorMessage,
       },
       select: auditRunSummarySelect,
     });

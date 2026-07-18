@@ -1,22 +1,23 @@
 import { AuditRunStatus, getPrismaClient } from '@site-quality-audit/database';
 import { WORKER_SERVICE_NAME } from '@site-quality-audit/domain';
 import {
+  AUDIT_PROCESSING_ERROR_CODE,
+  AUDIT_PROCESSING_ERROR_MESSAGE,
   auditJobPayloadSchema,
   type AuditJobPayload,
 } from '@site-quality-audit/queue';
 import { createLogger } from '@site-quality-audit/logging';
 
 const logger = createLogger({ service: WORKER_SERVICE_NAME });
+type AuditLogger = Pick<typeof logger, 'error' | 'info'>;
 
 const sleep = (durationMs: number) =>
   new Promise((resolve) => setTimeout(resolve, durationMs));
 
 const getFailureState = (error: unknown) => ({
-  errorCode: 'AUDIT_PROCESSING_ERROR',
-  errorMessage:
-    error instanceof Error
-      ? error.message.slice(0, 200)
-      : 'Audit processing failed',
+  errorCode: AUDIT_PROCESSING_ERROR_CODE,
+  errorMessage: AUDIT_PROCESSING_ERROR_MESSAGE,
+  errorName: error instanceof Error ? error.name : 'UnknownError',
 });
 
 export const processAuditJob = async (
@@ -94,9 +95,11 @@ export const markAuditRunFailure = async (
   input: AuditJobPayload,
   error: unknown,
   isFinalAttempt: boolean,
+  loggerImpl: AuditLogger = logger,
 ) => {
   const payload = auditJobPayloadSchema.parse(input);
   const prisma = getPrismaClient();
+  const failure = getFailureState(error);
 
   await prisma.auditRun.updateMany({
     where: {
@@ -108,18 +111,20 @@ export const markAuditRunFailure = async (
       ? {
           status: AuditRunStatus.FAILED,
           failedAt: new Date(),
-          ...getFailureState(error),
+          errorCode: failure.errorCode,
+          errorMessage: failure.errorMessage,
         }
       : {
           status: AuditRunStatus.QUEUED,
         },
   });
 
-  logger.error('audit.run_failed', {
+  loggerImpl.error('audit.run_failed', {
     auditRunId: payload.auditRunId,
+    errorCode: failure.errorCode,
+    errorName: failure.errorName,
     isFinalAttempt,
     siteId: payload.siteId,
     workspaceId: payload.workspaceId,
-    ...getFailureState(error),
   });
 };

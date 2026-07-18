@@ -76,7 +76,7 @@ model AuditRun {
   id                String         @id @default(uuid()) @db.Uuid
   workspaceId       String         @db.Uuid
   siteId            String         @db.Uuid
-  requestedByUserId String         @db.Uuid
+  requestedByUserId String?        @db.Uuid
   status            AuditRunStatus
   queueJobId        String?        @unique
   startedAt         DateTime?
@@ -86,7 +86,7 @@ model AuditRun {
   errorMessage      String?
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
-  requestedByUser   User           @relation("AuditRequestedByUser", fields: [requestedByUserId], references: [id], onDelete: Cascade)
+  requestedByUser   User?          @relation("AuditRequestedByUser", fields: [requestedByUserId], references: [id], onDelete: SetNull)
   site              Site           @relation(fields: [siteId], references: [id], onDelete: Cascade)
   workspace         Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 

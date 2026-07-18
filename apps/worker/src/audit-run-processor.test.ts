@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { afterAll, afterEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import { parseDatabaseEnv, parseWorkerEnv } from '@site-quality-audit/config';
 import {
   AuditRunStatus,
@@ -160,8 +160,12 @@ describe('audit worker', () => {
     }
   });
 
-  it('persists a failed terminal state safely', async () => {
+  it('persists a failed terminal state with a fixed safe message and log fields', async () => {
     const fixture = await createAuditFixture();
+    const loggerImpl = {
+      error: vi.fn(),
+      info: vi.fn(),
+    };
 
     try {
       await markAuditRunFailure(
@@ -170,8 +174,11 @@ describe('audit worker', () => {
           siteId: fixture.site.id,
           workspaceId: fixture.workspace.id,
         },
-        new Error('Placeholder audit failed'),
+        new Error(
+          'connect ECONNREFUSED redis://user:secret-pass@redis.example.com:6379',
+        ),
         true,
+        loggerImpl,
       );
 
       const failedAuditRun = await db.auditRun.findUniqueOrThrow({
@@ -180,7 +187,18 @@ describe('audit worker', () => {
 
       expect(failedAuditRun.status).toBe(AuditRunStatus.FAILED);
       expect(failedAuditRun.errorCode).toBe('AUDIT_PROCESSING_ERROR');
-      expect(failedAuditRun.errorMessage).toBe('Placeholder audit failed');
+      expect(failedAuditRun.errorMessage).toBe(
+        'The audit could not be completed.',
+      );
+
+      const [event, fields] = loggerImpl.error.mock.calls[0];
+      expect(event).toBe('audit.run_failed');
+      expect(fields).toMatchObject({
+        errorCode: 'AUDIT_PROCESSING_ERROR',
+        errorName: 'Error',
+      });
+      expect(JSON.stringify(fields)).not.toContain('secret-pass');
+      expect(JSON.stringify(fields)).not.toContain('redis.example.com');
     } finally {
       await db.workspace.delete({ where: { id: fixture.workspace.id } });
     }
