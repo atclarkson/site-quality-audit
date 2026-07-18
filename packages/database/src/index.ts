@@ -30,4 +30,10 @@ export const getPrismaClient = () => {
   return globalForPrisma.prisma;
 };
 
-export { AuditRunStatus, MembershipRole, Prisma } from '@prisma/client';
+export {
+  AuditRunStatus,
+  CrawledPageDiscoverySource,
+  CrawledPageFetchStatus,
+  MembershipRole,
+  Prisma,
+} from '@prisma/client';

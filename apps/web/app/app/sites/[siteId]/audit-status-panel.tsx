@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import type { SerializableSiteAuditSnapshot } from '../../../../lib/audit-management';
 
 const dateFormatter = new Intl.DateTimeFormat('en-US', {
@@ -54,8 +55,13 @@ export function AuditStatusPanel({
         <div className="audit-status-card">
           <h3>Current audit</h3>
           <p>Status: {snapshot.activeAuditRun.status}</p>
+          <p>Discovered: {snapshot.activeAuditRun.discoveredUrlCount}</p>
+          <p>Queued for crawl: {snapshot.activeAuditRun.queuedUrlCount}</p>
+          <p>Crawled: {snapshot.activeAuditRun.crawledUrlCount}</p>
+          <p>Failed: {snapshot.activeAuditRun.failedUrlCount}</p>
+          <p>Excluded: {snapshot.activeAuditRun.excludedUrlCount}</p>
           <p>
-            Queued:{' '}
+            Queued at:{' '}
             {dateFormatter.format(new Date(snapshot.activeAuditRun.createdAt))}
           </p>
           {snapshot.activeAuditRun.startedAt ? (
@@ -83,6 +89,13 @@ export function AuditStatusPanel({
           {snapshot.activeAuditRun.errorMessage ? (
             <p>Error: {snapshot.activeAuditRun.errorMessage}</p>
           ) : null}
+          <p>
+            <Link
+              href={`/app/sites/${siteId}/audits/${snapshot.activeAuditRun.id}`}
+            >
+              View audit detail
+            </Link>
+          </p>
         </div>
       ) : (
         <p>No audit currently running.</p>
@@ -96,8 +109,17 @@ export function AuditStatusPanel({
             <li key={auditRun.id}>
               <h3>{auditRun.status}</h3>
               <p>
+                <Link href={`/app/sites/${siteId}/audits/${auditRun.id}`}>
+                  View audit detail
+                </Link>
+              </p>
+              <p>
                 Queued: {dateFormatter.format(new Date(auditRun.createdAt))}
               </p>
+              <p>Discovered: {auditRun.discoveredUrlCount}</p>
+              <p>Crawled: {auditRun.crawledUrlCount}</p>
+              <p>Failed: {auditRun.failedUrlCount}</p>
+              <p>Excluded: {auditRun.excludedUrlCount}</p>
               {auditRun.startedAt ? (
                 <p>
                   Started: {dateFormatter.format(new Date(auditRun.startedAt))}

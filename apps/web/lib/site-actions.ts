@@ -145,6 +145,6 @@ export const createStartAuditAction = (
       return redirectImpl('/app');
     }
 
-    return redirectImpl(`/app/sites/${siteId}`);
+    return redirectImpl(`/app/sites/${siteId}/audits/${auditRun.id}`);
   };
 };

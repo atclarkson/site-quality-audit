@@ -283,7 +283,7 @@ describe('site server actions', () => {
       activeContext = secondContext;
 
       await expect(action()).rejects.toMatchObject({
-        path: '/app/sites/site-1',
+        path: '/app/sites/site-1/audits/audit-1',
       });
       expect(startAuditForSiteImpl).toHaveBeenCalledWith(
         secondContext,
