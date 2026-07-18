@@ -63,7 +63,7 @@ Runs audits, reviews findings, accepts or rejects recommendations, and manages r
 
 Can view sites, audits, findings, and reports but cannot change integrations or accept destructive recommendations.
 
-The MVP may initially expose only Owner functionality while retaining a data model that can support memberships later.
+The initial product exposes Owner functionality and automatically creates one private workspace with an Owner membership for each newly authenticated user. Shared-workspace management remains deferred, while persistence and authorization remain membership-based from the beginning.
 
 ## Functional requirements
 
@@ -234,7 +234,6 @@ Open topic cluster → compare intents, performance, links, and quality → choo
 
 ## Open product questions
 
-- Should the first release expose shared workspaces or create one private workspace per user?
 - Which business-importance inputs are manual versus derived?
 - How much historical data should the default deployment retain?
 - Which dashboard views are required before private beta?
